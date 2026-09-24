@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Design tokens ─────────────────────────────────────────────── */
+:root {
+  --primary-50: 240 253 250;
+  --primary-100: 204 251 241;
+  --primary-200: 153 246 228;
+  --primary-500: 20 184 166;
+  --primary-600: 13 148 136;
+  --primary-700: 15 118 110;
+  --primary-800: 17 94 89;
+
+  --canvas: 248 250 252;
+  --surface: 255 255 255;
+  --border: 226 232 240;
+  --ink: 15 23 42;
+  --ink-muted: 71 85 105;
+  --ink-subtle: 100 116 139;
+
+  --success: 21 128 61;
+  --success-soft: 220 252 231;
+  --warning: 180 83 9;
+  --warning-soft: 254 243 199;
+  --danger: 185 28 28;
+  --danger-soft: 254 226 226;
+  --info: 29 78 216;
+  --info-soft: 219 234 254;
+
+  color-scheme: light;
+}
+
+@layer base {
+  html {
+    @apply bg-canvas text-ink antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  body {
+    @apply min-h-screen text-sm;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-surface;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-lg border border-border bg-surface shadow-card;
+  }
+  .input {
+    @apply block w-full rounded border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle
+      focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20
+      disabled:cursor-not-allowed disabled:bg-canvas disabled:text-ink-subtle;
+  }
+  .input[aria-invalid='true'] {
+    @apply border-danger focus:border-danger focus:ring-danger/20;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium text-ink-muted;
+  }
+  .table-base {
+    @apply w-full border-collapse text-left text-sm;
+  }
+  .table-base th {
+    @apply border-b border-border bg-canvas px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle;
+  }
+  .table-base td {
+    @apply border-b border-border px-4 py-3 align-middle;
+  }
+  .table-base tbody tr:hover {
+    @apply bg-canvas/60;
+  }
+}
+
+/* ── Print (spec §58): hide app chrome ─────────────────────────── */
+@media print {
+  .no-print,
+  nav,
+  header,
+  aside,
+  button {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
