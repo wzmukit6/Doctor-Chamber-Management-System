@@ -24,6 +24,7 @@ export const PERMISSIONS = {
 
   // Patients
   PATIENTS_VIEW: 'patients.view',
+  PATIENTS_VIEW_MEDICAL: 'patients.view_medical',
   PATIENTS_CREATE: 'patients.create',
   PATIENTS_UPDATE: 'patients.update',
   PATIENTS_UPDATE_MEDICAL: 'patients.update_medical',
@@ -117,6 +118,7 @@ export const PERMISSION_GROUPS: { key: string; permissions: Permission[] }[] = [
     key: 'patients',
     permissions: [
       PERMISSIONS.PATIENTS_VIEW,
+      PERMISSIONS.PATIENTS_VIEW_MEDICAL,
       PERMISSIONS.PATIENTS_CREATE,
       PERMISSIONS.PATIENTS_UPDATE,
       PERMISSIONS.PATIENTS_UPDATE_MEDICAL,
@@ -249,6 +251,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleKey, Permission[]> = {
   [ROLES.DOCTOR]: [
     P.CHAMBERS_VIEW,
     P.PATIENTS_VIEW,
+    P.PATIENTS_VIEW_MEDICAL,
     P.PATIENTS_CREATE,
     P.PATIENTS_UPDATE,
     P.PATIENTS_UPDATE_MEDICAL,

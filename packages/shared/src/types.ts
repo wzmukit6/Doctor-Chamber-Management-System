@@ -101,3 +101,74 @@ export interface AuditLogDto {
   ipAddress: string | null;
   userAgent: string | null;
 }
+
+export interface EmergencyContactDto {
+  id: string;
+  name: string;
+  relation: string | null;
+  phone: string;
+}
+
+export interface AllergyDto {
+  id: string;
+  allergen: string;
+  reaction: string | null;
+  severity: 'MILD' | 'MODERATE' | 'SEVERE' | 'UNKNOWN';
+  createdAt: string;
+}
+
+export interface MedicalHistoryDto {
+  existingConditions: string | null;
+  previousSurgeries: string | null;
+  currentMedications: string | null;
+  relevantHistory: string | null;
+  familyHistory: string | null;
+  lifestyle: string | null;
+  version: number;
+  updatedAt: string | null;
+  updatedByName: string | null;
+}
+
+/** Row in patient lists and search results. */
+export interface PatientSummaryDto {
+  id: string;
+  patientCode: string;
+  fullName: string;
+  gender: 'MALE' | 'FEMALE' | 'OTHER' | 'UNDISCLOSED';
+  dateOfBirth: string | null;
+  dobEstimated: boolean;
+  age: number | null;
+  phone: string | null;
+  bloodGroup: string | null;
+  registeredAt: string;
+  isDemo: boolean;
+}
+
+export interface PatientDto extends PatientSummaryDto {
+  chamberId: string;
+  email: string | null;
+  address: string | null;
+  occupation: string | null;
+  nationality: string | null;
+  emergencyContacts: EmergencyContactDto[];
+  version: number;
+  registeredByName: string | null;
+  updatedAt: string;
+  /** Present only when the viewer holds `patients.view_medical`. */
+  medical: { history: MedicalHistoryDto; allergies: AllergyDto[] } | null;
+}
+
+export interface DuplicateCandidateDto extends PatientSummaryDto {
+  matchReasons: ('phone' | 'name' | 'dob')[];
+}
+
+export interface TimelineEventDto {
+  id: string;
+  type: 'registration' | 'record' | 'appointment' | 'consultation' | 'diagnosis' | 'prescription' | 'investigation' | 'payment' | 'follow_up';
+  occurredAt: string;
+  title: string;
+  /** Translation key + params so the client can localize. */
+  titleKey: string;
+  details: Record<string, string | number | null>;
+  actorName: string | null;
+}

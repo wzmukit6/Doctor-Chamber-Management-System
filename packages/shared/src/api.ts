@@ -13,6 +13,8 @@ export interface ApiFailure {
     code: ErrorCode;
     message: string;
     details?: { path: string; message: string }[];
+    /** Structured context for specific codes (e.g. duplicate candidates for POSSIBLE_DUPLICATE). */
+    data?: unknown;
   };
 }
 

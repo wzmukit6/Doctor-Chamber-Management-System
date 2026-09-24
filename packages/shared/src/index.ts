@@ -7,3 +7,4 @@ export * from './types';
 export * from './schemas/auth';
 export * from './schemas/tenancy';
 export * from './schemas/users';
+export * from './schemas/patients';

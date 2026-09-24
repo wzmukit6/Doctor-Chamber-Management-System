@@ -171,3 +171,101 @@ export async function seedDemo(prisma: PrismaClient) {
 
   return { org, chamberA, chamberB };
 }
+
+type DemoPatient = {
+  fullName: string;
+  gender: 'MALE' | 'FEMALE';
+  dob?: string;
+  age?: number;
+  blood?: string;
+  occupation?: string;
+  address: string;
+  allergies?: { allergen: string; reaction?: string; severity: 'MILD' | 'MODERATE' | 'SEVERE' | 'UNKNOWN' }[];
+  history?: { existingConditions?: string; currentMedications?: string; familyHistory?: string; lifestyle?: string; previousSurgeries?: string };
+  emergency?: { name: string; relation: string };
+};
+
+/** Fictional demo patients. Names are common generic names; phones use the reserved-looking 0170000xxxx range. */
+const DEMO_PATIENTS: DemoPatient[] = [
+  { fullName: 'Abdul Karim', gender: 'MALE', dob: '1968-04-12', blood: 'B+', occupation: 'Businessman', address: 'Dhanmondi 27, Dhaka',
+    history: { existingConditions: 'Type 2 diabetes mellitus (2015); Hypertension', currentMedications: 'Metformin 500 mg BD; Amlodipine 5 mg OD', familyHistory: 'Father: diabetes', lifestyle: 'Ex-smoker (quit 2018), walks 30 min daily' },
+    allergies: [{ allergen: 'Penicillin', reaction: 'Skin rash', severity: 'MODERATE' }], emergency: { name: 'Salma Karim', relation: 'Wife' } },
+  { fullName: 'Salma Begum', gender: 'FEMALE', dob: '1975-11-02', blood: 'O+', occupation: 'Teacher', address: 'Mohammadpur, Dhaka',
+    history: { existingConditions: 'Hypothyroidism', currentMedications: 'Levothyroxine 50 mcg OD' } },
+  { fullName: 'Rafiqul Islam', gender: 'MALE', age: 52, blood: 'A+', occupation: 'Government service', address: 'Lalmatia, Dhaka',
+    history: { existingConditions: 'Hypertension', previousSurgeries: 'Appendectomy (1995)' } },
+  { fullName: 'Nasrin Akter', gender: 'FEMALE', dob: '1990-06-21', blood: 'AB+', occupation: 'Banker', address: 'Kalabagan, Dhaka',
+    allergies: [{ allergen: 'Sulfa drugs', reaction: 'Urticaria', severity: 'SEVERE' }] },
+  { fullName: 'Mohammad Hasan', gender: 'MALE', dob: '1985-01-30', blood: 'B-', occupation: 'Engineer', address: 'Jigatola, Dhaka' },
+  { fullName: 'Fatema Khatun', gender: 'FEMALE', age: 67, blood: 'O-', occupation: 'Homemaker', address: 'Hazaribagh, Dhaka',
+    history: { existingConditions: 'Osteoarthritis (knees); Type 2 diabetes', currentMedications: 'Gliclazide 80 mg BD' }, emergency: { name: 'Jamal Uddin', relation: 'Son' } },
+  { fullName: 'Tanvir Ahmed', gender: 'MALE', dob: '1998-09-15', blood: 'A-', occupation: 'Student', address: 'Science Lab, Dhaka',
+    history: { lifestyle: 'Smoker, 5 cigarettes/day' } },
+  { fullName: 'Ayesha Siddika', gender: 'FEMALE', dob: '2016-03-08', blood: 'B+', address: 'Dhanmondi 15, Dhaka',
+    allergies: [{ allergen: 'Peanuts', reaction: 'Swelling of lips', severity: 'SEVERE' }], emergency: { name: 'Rashida Siddika', relation: 'Mother' } },
+  { fullName: 'Jahangir Alam', gender: 'MALE', age: 45, occupation: 'Driver', address: 'Rayer Bazar, Dhaka' },
+  { fullName: 'Shirin Sultana', gender: 'FEMALE', dob: '1982-12-25', blood: 'A+', occupation: 'Nurse', address: 'Green Road, Dhaka' },
+  { fullName: 'Kamal Hossain', gender: 'MALE', dob: '1959-07-04', blood: 'O+', occupation: 'Retired', address: 'Shyamoli, Dhaka',
+    history: { existingConditions: 'Ischaemic heart disease; CKD stage 3', currentMedications: 'Aspirin 75 mg OD; Atorvastatin 20 mg OD', previousSurgeries: 'PCI (2019)' } },
+  { fullName: 'Rumana Parvin', gender: 'FEMALE', dob: '1993-02-14', occupation: 'Designer', address: 'Panthapath, Dhaka' },
+];
+
+const DEMO_PATIENTS_B: DemoPatient[] = [
+  { fullName: 'Arif Chowdhury', gender: 'MALE', dob: '2019-05-10', blood: 'B+', address: 'Sector 4, Uttara, Dhaka', emergency: { name: 'Lima Chowdhury', relation: 'Mother' } },
+  { fullName: 'Mitu Rahman', gender: 'FEMALE', dob: '2021-10-01', address: 'Sector 11, Uttara, Dhaka',
+    allergies: [{ allergen: 'Cow milk protein', reaction: 'Vomiting', severity: 'MILD' }] },
+  { fullName: 'Sabbir Hossain', gender: 'MALE', age: 9, address: 'Sector 13, Uttara, Dhaka' },
+];
+
+async function seedPatientsFor(prisma: PrismaClient, chamber: { id: string; code: string; organizationId: string }, list: DemoPatient[], phoneBase: number, createdById: string | null) {
+  if ((await prisma.patient.count({ where: { chamberId: chamber.id } })) > 0) return;
+  const today = new Date();
+  for (const [i, p] of list.entries()) {
+    const seqRows = await prisma.$queryRaw<{ last_value: number }[]>`
+      INSERT INTO patient_code_sequences (chamber_id, last_value) VALUES (${chamber.id}::uuid, 1)
+      ON CONFLICT (chamber_id) DO UPDATE SET last_value = patient_code_sequences.last_value + 1
+      RETURNING last_value`;
+    const phone = `0170000${String(phoneBase + i).padStart(4, '0')}`;
+    const dob = p.dob
+      ? new Date(`${p.dob}T00:00:00Z`)
+      : new Date(Date.UTC(today.getUTCFullYear() - (p.age ?? 30), today.getUTCMonth(), today.getUTCDate()));
+    await prisma.patient.create({
+      data: {
+        organizationId: chamber.organizationId,
+        chamberId: chamber.id,
+        patientCode: `${chamber.code}-${String(seqRows[0]!.last_value).padStart(5, '0')}`,
+        fullName: p.fullName,
+        gender: p.gender,
+        dateOfBirth: dob,
+        dobEstimated: !p.dob,
+        bloodGroup: p.blood ?? null,
+        phone,
+        phoneSearch: phone,
+        address: p.address,
+        occupation: p.occupation ?? null,
+        nationality: 'Bangladeshi',
+        isDemo: true,
+        createdById,
+        // Spread registrations over the last few months so lists and timelines look realistic.
+        createdAt: new Date(Date.now() - (list.length - i) * 6 * 86_400_000),
+        contacts: p.emergency
+          ? { create: [{ name: p.emergency.name, relation: p.emergency.relation, phone: `0170009${String(phoneBase + i).padStart(4, '0')}` }] }
+          : undefined,
+        allergies: p.allergies ? { create: p.allergies } : undefined,
+        medicalHistory: p.history ? { create: { ...p.history, updatedByName: 'Demo seed' } } : undefined,
+      },
+    });
+  }
+}
+
+/** Demo patients for both demo chambers (idempotent: skipped when a chamber already has patients). */
+export async function seedDemoPatients(prisma: PrismaClient) {
+  const org = await prisma.organization.findUnique({ where: { slug: 'demo-health' } });
+  if (!org) return;
+  const chamberA = await prisma.chamber.findFirst({ where: { organizationId: org.id, code: 'DHN' } });
+  const chamberB = await prisma.chamber.findFirst({ where: { organizationId: org.id, code: 'UTR' } });
+  const assistant = await prisma.user.findUnique({ where: { email: DEMO_USERS.assistant } });
+  const doctorB = await prisma.user.findUnique({ where: { email: DEMO_USERS.doctorB } });
+  if (chamberA) await seedPatientsFor(prisma, chamberA, DEMO_PATIENTS, 100, assistant?.id ?? null);
+  if (chamberB) await seedPatientsFor(prisma, chamberB, DEMO_PATIENTS_B, 500, doctorB?.id ?? null);
+}

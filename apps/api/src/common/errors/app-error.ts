@@ -12,6 +12,7 @@ export class AppError extends Error {
     message: string,
     public readonly status: HttpStatus = HttpStatus.BAD_REQUEST,
     public readonly details?: { path: string; message: string }[],
+    public readonly data?: unknown,
   ) {
     super(message);
   }

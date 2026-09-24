@@ -11,6 +11,13 @@ import { PageResult } from '../../common/interceptors/response.interceptor';
 import { pageArgs, pageMeta } from '../../common/utils/pagination';
 import { AuditService } from './audit.service';
 
+/**
+ * Actions whose old/new values contain medical information. Their values are
+ * redacted for viewers without `patients.view_medical` (spec §51).
+ */
+const MEDICAL_ACTIONS = new Set(['patient.medical_history_updated', 'patient.allergy_added', 'patient.allergy_removed']);
+const REDACTED = { redacted: true };
+
 const auditQuerySchema = paginationQuerySchema.extend({
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
@@ -72,6 +79,9 @@ export class AuditController {
       this.prisma.auditLog.findMany({ where, orderBy: { seq: q.order }, ...pageArgs(q) }),
     ]);
     const showClientMeta = actor.role === ROLES.SUPER_ADMIN || actor.role === ROLES.MANAGER;
+    const canSeeMedical = actor.permissions.has(PERMISSIONS.PATIENTS_VIEW_MEDICAL);
+    const redact = (action: string, value: unknown) =>
+      value !== null && MEDICAL_ACTIONS.has(action) && !canSeeMedical ? REDACTED : value;
     return new PageResult(
       rows.map((r) => ({
         id: r.id,
@@ -83,8 +93,8 @@ export class AuditController {
         resourceType: r.resourceType,
         resourceId: r.resourceId,
         chamberId: r.chamberId,
-        oldValue: r.oldValue,
-        newValue: r.newValue,
+        oldValue: redact(r.action, r.oldValue),
+        newValue: redact(r.action, r.newValue),
         reason: r.reason,
         ipAddress: showClientMeta ? r.ipAddress : null,
         userAgent: showClientMeta ? r.userAgent : null,

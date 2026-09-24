@@ -12,6 +12,7 @@ import { RolesModule } from './modules/roles/roles.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { ChambersModule } from './modules/chambers/chambers.module';
 import { HealthModule } from './modules/health/health.module';
+import { PatientsModule } from './modules/patients/patients.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { AuthGuard } from './common/guards/auth.guard';
@@ -32,6 +33,7 @@ const config = loadConfig();
     RolesModule,
     OrganizationsModule,
     ChambersModule,
+    PatientsModule,
     HealthModule,
   ],
   providers: [

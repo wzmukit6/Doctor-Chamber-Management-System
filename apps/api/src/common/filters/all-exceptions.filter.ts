@@ -28,7 +28,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   private toResponse(exception: unknown): { status: number; body: ApiFailure } {
     if (exception instanceof AppError) {
-      return fail(exception.status, exception.code, exception.message, exception.details);
+      return fail(exception.status, exception.code, exception.message, exception.details, exception.data);
     }
 
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
@@ -75,6 +75,10 @@ function fail(
   code: ErrorCode,
   message: string,
   details?: { path: string; message: string }[],
+  data?: unknown,
 ): { status: number; body: ApiFailure } {
-  return { status, body: { success: false, error: { code, message, ...(details ? { details } : {}) } } };
+  return {
+    status,
+    body: { success: false, error: { code, message, ...(details ? { details } : {}), ...(data !== undefined ? { data } : {}) } },
+  };
 }
