@@ -45,7 +45,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     key: 'section_front_desk',
     items: [
-      { key: 'patients', to: '/patients', icon: UserRound, permissions: [P.PATIENTS_VIEW], available: false },
+      { key: 'patients', to: '/patients', icon: UserRound, permissions: [P.PATIENTS_VIEW], available: true },
       { key: 'appointments', to: '/appointments', icon: CalendarDays, permissions: [P.APPOINTMENTS_VIEW], available: false },
       { key: 'queue', to: '/queue', icon: ListOrdered, permissions: [P.QUEUE_VIEW], available: false },
     ],

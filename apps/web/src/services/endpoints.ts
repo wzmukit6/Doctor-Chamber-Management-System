@@ -1,5 +1,14 @@
 import type {
   AdminResetPasswordInput,
+  AllergyInput,
+  CreatePatientInput,
+  DuplicateCandidateDto,
+  DuplicateCheckInput,
+  PatientDto,
+  PatientSummaryDto,
+  TimelineEventDto,
+  UpdateMedicalHistoryInput,
+  UpdatePatientInput,
   AuditLogDto,
   ChamberDto,
   ChangePasswordInput,
@@ -73,4 +82,20 @@ export const chambersApi = {
 export const auditApi = {
   list: (params: ListParams) => api.page<AuditLogDto>('/audit-logs', params),
   verify: () => api.get<{ valid: boolean; checked: number; brokenAtSeq: string | null }>('/audit-logs/verify'),
+};
+
+export const patientsApi = {
+  list: (params: ListParams) => api.page<PatientSummaryDto>('/patients', params),
+  search: (q: string, limit = 8) => api.get<PatientSummaryDto[]>('/patients/search', { q, limit }),
+  recent: () => api.get<PatientSummaryDto[]>('/patients/recent'),
+  get: (id: string) => api.get<PatientDto>(`/patients/${id}`),
+  duplicates: (input: DuplicateCheckInput) => api.post<DuplicateCandidateDto[]>('/patients/duplicates', input),
+  create: (input: CreatePatientInput) => api.post<PatientDto>('/patients', input),
+  update: (id: string, input: UpdatePatientInput) => api.patch<PatientDto>(`/patients/${id}`, input),
+  updateMedical: (id: string, input: UpdateMedicalHistoryInput) => api.put<PatientDto>(`/patients/${id}/medical-history`, input),
+  addAllergy: (id: string, input: AllergyInput) => api.post<PatientDto>(`/patients/${id}/allergies`, input),
+  removeAllergy: (id: string, allergyId: string, reason: string) => api.delete<PatientDto>(`/patients/${id}/allergies/${allergyId}`, { reason }),
+  remove: (id: string, reason: string) => api.delete(`/patients/${id}`, { reason }),
+  timeline: (id: string, params: { types?: string; before?: string; limit?: number }) =>
+    api.get<{ events: TimelineEventDto[]; hasMore: boolean }>(`/patients/${id}/timeline`, params),
 };

@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { Building2, ChevronsUpDown, Languages, LogOut, Menu as MenuIcon, Search, UserCircle2, X } from 'lucide-react';
+import { PERMISSIONS } from '@chamber/shared';
 import { useAuth } from '@/stores/auth';
 import { visibleSections } from '@/permissions/navigation';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -14,7 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 export function AppLayout() {
   const { t, i18n } = useTranslation();
-  const { user, canAny, signOut } = useAuth();
+  const { user, can, canAny, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
@@ -140,7 +141,7 @@ export function AppLayout() {
             className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded border border-border bg-canvas px-3 text-left text-sm text-ink-subtle hover:border-ink-subtle/40 sm:max-w-sm"
           >
             <Search className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="truncate">{t('command.placeholder')}</span>
+            <span className="truncate">{can(PERMISSIONS.PATIENTS_VIEW) ? t('patients.search_placeholder') : t('command.placeholder')}</span>
             <kbd className="ml-auto hidden rounded border border-border bg-surface px-1.5 text-2xs sm:inline">Ctrl K</kbd>
           </button>
 

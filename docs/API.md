@@ -26,6 +26,7 @@ environments.
 | 401 | `UNAUTHENTICATED`, `INVALID_CREDENTIALS`, `SESSION_EXPIRED` |
 | 403 | `FORBIDDEN`, `CSRF_INVALID`, `ACCOUNT_INACTIVE`, `ROLE_NOT_MANAGEABLE`, `CANNOT_MODIFY_SELF`, `GRANT_NOT_ALLOWED` |
 | 404 | `NOT_FOUND` (also returned for records in another chamber) |
+| 409 (patients) | `POSSIBLE_DUPLICATE` — `error.data.candidates` lists matching patients; resend with `allowDuplicate: true` to confirm |
 | 409 | `DUPLICATE`, `CONFLICT`, `STALE_VERSION` |
 | 415 | body is not `application/json` |
 | 422 | `VALIDATION_FAILED`, `WEAK_PASSWORD`, `GRANT_NOT_ALLOWED` |
@@ -82,8 +83,25 @@ Every non-GET request must send header `X-CSRF-Token: <ca_csrf value>`.
 | GET | `/audit-logs` | `audit_logs.view` | scoped by role; filters `from,to,userId,role,action,resourceType,resourceId,chamberId` |
 | GET | `/audit-logs/verify` | `system.manage` | verifies the hash chain |
 
+## Phase 2 endpoints — patients
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| GET | `/patients` | `patients.view` | `q` (ID / name / phone / email / DOB), `gender`, `registeredFrom`, `registeredTo`, `sort` = `createdAt`\|`fullName`\|`patientCode`; relevance-ranked when `q` is set |
+| GET | `/patients/search` | `patients.view` | `q`, `limit` (≤20) — lightweight results for Ctrl+K and pickers |
+| GET | `/patients/recent` | `patients.view` | the caller's recently opened patients in the active chamber |
+| POST | `/patients/duplicates` | `patients.create` | `{ fullName?, phone?, dateOfBirth?, excludeId? }` → candidates with `matchReasons` |
+| POST | `/patients` | `patients.create` | registered in the caller's chamber; `medicalHistory` / `allergies` additionally need `patients.update_medical` |
+| GET | `/patients/:id` | `patients.view` | `medical` is `null` without `patients.view_medical`; the view is access-logged |
+| GET | `/patients/:id/timeline` | `patients.view` | `types` (comma-separated), `before` (ISO cursor), `limit` |
+| PATCH | `/patients/:id` | `patients.update` | demographics + emergency contacts; optimistic locking |
+| PUT | `/patients/:id/medical-history` | `patients.update_medical` + `patients.view_medical` | `version` 0 creates the record |
+| POST | `/patients/:id/allergies` | `patients.update_medical` + `patients.view_medical` | duplicate allergens rejected |
+| DELETE | `/patients/:id/allergies/:allergyId` | `patients.update_medical` + `patients.view_medical` | `{ reason }`, soft delete |
+| DELETE | `/patients/:id` | `patients.delete` | `{ reason }`, archive (soft delete) |
+
 ## Planned resources
 
-`/api/patients`, `/api/appointments`, `/api/queue`, `/api/consultations`, `/api/prescriptions`,
+`/api/appointments`, `/api/queue`, `/api/consultations`, `/api/prescriptions`,
 `/api/medicines`, `/api/diagnoses`, `/api/investigations`, `/api/billing`, `/api/reports`,
 `/api/settings` — delivered phase by phase (see [ROADMAP.md](ROADMAP.md)) with the same conventions.

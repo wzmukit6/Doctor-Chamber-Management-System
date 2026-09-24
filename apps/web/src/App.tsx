@@ -18,6 +18,9 @@ const RolesPage = lazy(() => import('@/features/roles/RolesPage').then((m) => ({
 const OrganizationsPage = lazy(() => import('@/features/organizations/OrganizationsPage').then((m) => ({ default: m.OrganizationsPage })));
 const ChambersPage = lazy(() => import('@/features/chambers/ChambersPage').then((m) => ({ default: m.ChambersPage })));
 const AuditLogsPage = lazy(() => import('@/features/audit/AuditLogsPage').then((m) => ({ default: m.AuditLogsPage })));
+const PatientsPage = lazy(() => import('@/features/patients/PatientsPage').then((m) => ({ default: m.PatientsPage })));
+const PatientFormPage = lazy(() => import('@/features/patients/PatientFormPage').then((m) => ({ default: m.PatientFormPage })));
+const PatientProfilePage = lazy(() => import('@/features/patients/PatientProfilePage').then((m) => ({ default: m.PatientProfilePage })));
 const ProfilePage = lazy(() => import('@/features/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 
 function FullPageSpinner() {
@@ -53,6 +56,46 @@ export function App() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route
+          path="patients"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.PATIENTS_VIEW}>
+                <PatientsPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="patients/new"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.PATIENTS_CREATE}>
+                <PatientFormPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="patients/:id"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.PATIENTS_VIEW}>
+                <PatientProfilePage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="patients/:id/edit"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.PATIENTS_UPDATE}>
+                <PatientFormPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
         <Route
           path="users"
           element={

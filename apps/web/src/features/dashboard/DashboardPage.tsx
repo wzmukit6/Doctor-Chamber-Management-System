@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
@@ -17,13 +17,15 @@ import {
   ShieldCheck,
   Stethoscope,
   UserPlus,
+  UserRound,
   Users,
   CalendarClock,
   Wallet,
 } from 'lucide-react';
 import { PERMISSIONS, type RoleKey } from '@chamber/shared';
 import { useAuth } from '@/stores/auth';
-import { auditApi, organizationsApi, chambersApi, usersApi } from '@/services/endpoints';
+import { auditApi, organizationsApi, chambersApi, patientsApi, usersApi } from '@/services/endpoints';
+import { PatientLine } from '@/features/patients/components/PatientBits';
 import { Badge, Skeleton } from '@/components/ui';
 import { formatLongDate, formatRelative } from '@/utils/format';
 import { describeAction } from '@/features/audit/describe';
@@ -116,8 +118,9 @@ function RecentActivity() {
 }
 
 /** Activity feed (when the role may view audit logs) next to the delivery roadmap. */
-function ActivityAndRoadmap() {
+function ActivityAndRoadmap({ compact }: { compact?: boolean }) {
   const { can } = useAuth();
+  if (compact) return can(PERMISSIONS.AUDIT_LOGS_VIEW) ? <RecentActivity /> : <Roadmap />;
   if (!can(PERMISSIONS.AUDIT_LOGS_VIEW)) {
     return (
       <div className="lg:max-w-md">
@@ -135,10 +138,34 @@ function ActivityAndRoadmap() {
   );
 }
 
+function RecentPatients() {
+  const { t } = useTranslation();
+  const { can } = useAuth();
+  const q = useQuery({ queryKey: ['patients', 'recent'], queryFn: patientsApi.recent, enabled: can(PERMISSIONS.PATIENTS_VIEW) });
+  if (!can(PERMISSIONS.PATIENTS_VIEW)) return null;
+  return (
+    <section className="card" aria-labelledby="recent-patients-dash">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <h2 id="recent-patients-dash" className="text-sm font-semibold text-ink">
+          {t('dashboard.recent_patients')}
+        </h2>
+        <Link to="/patients" className="text-xs font-medium text-primary-700 hover:underline">
+          {t('nav.patients')}
+        </Link>
+      </div>
+      <div className="p-2">
+        {q.isLoading && <Skeleton className="m-2 h-8 w-2/3" />}
+        {q.data?.length === 0 && <p className="px-2 py-4 text-center text-sm text-ink-muted">{t('patients.no_recent')}</p>}
+        {q.data?.slice(0, 6).map((p) => <PatientLine key={p.id} patient={p} to={`/patients/${p.id}`} />)}
+      </div>
+    </section>
+  );
+}
+
 const ROADMAP: { phase: number; key: string; status: 'done' | 'next' | 'planned' }[] = [
   { phase: 1, key: 'Foundation — auth, users, RBAC, chambers, audit', status: 'done' },
-  { phase: 2, key: 'Patient management — registration, search, profile, timeline', status: 'next' },
-  { phase: 3, key: 'Appointments & queue', status: 'planned' },
+  { phase: 2, key: 'Patient management — registration, search, profile, timeline', status: 'done' },
+  { phase: 3, key: 'Appointments & queue', status: 'next' },
   { phase: 4, key: 'Clinical workflow — consultation, vitals, diagnosis', status: 'planned' },
   { phase: 5, key: 'Prescriptions — builder, templates, versioning, PDF', status: 'planned' },
   { phase: 6, key: 'Billing & payments', status: 'planned' },
@@ -224,6 +251,9 @@ function ManagerDashboard() {
   const staff = useQuery({ queryKey: ['dash', 'staff'], queryFn: () => usersApi.list({ pageSize: 1, status: 'active' }) });
   const doctors = useQuery({ queryKey: ['dash', 'doctors'], queryFn: () => usersApi.list({ pageSize: 1, role: 'DOCTOR', status: 'active' }) });
   const assistants = useQuery({ queryKey: ['dash', 'assistants'], queryFn: () => usersApi.list({ pageSize: 1, role: 'ASSISTANT', status: 'active' }) });
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+  const patients = useQuery({ queryKey: ['dash', 'patients'], queryFn: () => patientsApi.list({ pageSize: 1 }) });
+  const newPatients = useQuery({ queryKey: ['dash', 'patients-30d', since], queryFn: () => patientsApi.list({ pageSize: 1, registeredFrom: since }) });
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -238,9 +268,10 @@ function ManagerDashboard() {
           to="/chambers"
         />
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label={t('dashboard.patients_total')} value={patients.data?.meta.total} loading={patients.isLoading} icon={<UserRound className="h-5 w-5" />} to="/patients" />
+        <StatCard label={t('dashboard.new_patients_30d')} value={newPatients.data?.meta.total} loading={newPatients.isLoading} icon={<UserPlus className="h-5 w-5" />} to="/patients" />
         <PendingCard label={t('dashboard.todays_appointments')} icon={<CalendarClock className="h-5 w-5" />} module={t('nav.appointments')} />
-        <PendingCard label={t('dashboard.waiting_patients')} icon={<Hourglass className="h-5 w-5" />} module={t('nav.queue')} />
         <PendingCard label={t('dashboard.payment_status')} icon={<Wallet className="h-5 w-5" />} module={t('nav.billing')} />
       </div>
       <ActivityAndRoadmap />
@@ -250,6 +281,8 @@ function ManagerDashboard() {
 
 function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => void }) {
   const { t } = useTranslation();
+  const { can } = useAuth();
+  const navigate = useNavigate();
   const doctor = role === 'DOCTOR';
   return (
     <>
@@ -259,7 +292,12 @@ function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => 
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <QuickAction label={t('dashboard.search_patient')} icon={<Search className="h-4 w-4" />} onClick={onSearch} />
-          <QuickAction label={t('dashboard.new_patient')} icon={<UserPlus className="h-4 w-4" />} disabled />
+          <QuickAction
+            label={t('dashboard.new_patient')}
+            icon={<UserPlus className="h-4 w-4" />}
+            disabled={!can(PERMISSIONS.PATIENTS_CREATE)}
+            onClick={() => navigate('/patients/new')}
+          />
           <QuickAction label={t('dashboard.new_appointment')} icon={<CalendarPlus className="h-4 w-4" />} disabled />
           {doctor ? (
             <QuickAction label={t('dashboard.start_consultation')} icon={<Stethoscope className="h-4 w-4" />} disabled />
@@ -283,7 +321,10 @@ function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => 
           </>
         )}
       </div>
-      <ActivityAndRoadmap />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <RecentPatients />
+        <ActivityAndRoadmap compact />
+      </div>
     </>
   );
 }

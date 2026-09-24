@@ -9,6 +9,7 @@ export class ApiError extends Error {
     public readonly code: ErrorCode | 'NETWORK_ERROR',
     message: string,
     public readonly details: { path: string; message: string }[] = [],
+    public readonly data?: unknown,
   ) {
     super(message);
   }
@@ -72,6 +73,7 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
       failure?.code ?? 'INTERNAL_ERROR',
       failure?.message ?? 'Unexpected server response',
       failure?.details ?? [],
+      failure?.data,
     );
     if (res.status === 401 && !path.startsWith('/auth/login')) unauthorizedListeners.forEach((l) => l());
     throw err;

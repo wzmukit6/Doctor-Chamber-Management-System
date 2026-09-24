@@ -30,9 +30,12 @@ erDiagram
     permissions ||--o{ role_permissions : in
     user_roles ||--o{ sessions : "active membership"
 
-    chambers ||--o{ patients : "registers (planned)"
-    patients ||--o{ patient_allergies : "(planned)"
-    patients ||--o{ patient_medical_histories : "(planned)"
+    chambers ||--o{ patients : registers
+    patients ||--o{ patient_contacts : "emergency contacts"
+    patients ||--o{ patient_allergies : has
+    patients ||--o| patient_medical_histories : has
+    patients ||--o{ patient_recent_views : "recently opened by"
+    chambers ||--|| patient_code_sequences : numbers
     patients ||--o{ appointments : "(planned)"
     doctors ||--o{ appointments : "(planned)"
     appointments ||--o{ appointment_status_history : "(planned)"
@@ -150,6 +153,36 @@ erDiagram
       char prev_hash
       char hash
     }
+    patients {
+      uuid id PK
+      uuid chamber_id FK
+      varchar patient_code "unique per chamber"
+      varchar full_name "trigram index"
+      enum gender
+      date date_of_birth
+      bool dob_estimated
+      varchar blood_group "CHECK"
+      varchar phone
+      varchar phone_search "normalized digits, trigram index"
+      varchar email
+      int version
+      timestamptz deleted_at
+    }
+    patient_allergies {
+      uuid id PK
+      uuid patient_id FK
+      varchar allergen
+      enum severity
+      timestamptz deleted_at
+    }
+    patient_medical_histories {
+      uuid id PK
+      uuid patient_id UK
+      varchar existing_conditions
+      varchar current_medications
+      varchar family_history
+      int version
+    }
     settings {
       uuid id PK
       enum scope "PLATFORM|ORGANIZATION|CHAMBER|USER"
@@ -170,11 +203,13 @@ erDiagram
 | `audit_logs_no_update`, `audit_logs_no_truncate` triggers | append-only audit trail |
 | `audit_logs (chamber_id, created_at)`, `(user_id, created_at)`, `(resource_type, resource_id)` | scoped, filtered audit queries |
 | `sessions.token_hash` unique | O(1) session lookup |
+| `patients (chamber_id, patient_code)` unique + `patient_code_sequences` (atomic `INSERT … ON CONFLICT … RETURNING`) | gap-free, race-free patient IDs per chamber |
+| `patients_full_name_trgm`, `patients_phone_search_trgm` (GIN, `pg_trgm`, partial on `deleted_at IS NULL`) | partial / typo-tolerant search |
+| `patients (chamber_id, phone_search / date_of_birth / email / created_at)` | exact lookups, duplicate checks, date filters |
+| `patients_blood_group_valid`, `patients_email_lowercase`, `patients_dob_after_1900` CHECKs | data integrity |
 
 ## Planned (next phases)
 
-* **Patients** — `patients` (chamber-scoped patient code, demographics, trigram indexes for
-  fuzzy name/phone search), `patient_contacts`, `patient_allergies`, `patient_medical_histories`.
 * **Appointments & queue** — status history table, exclusion/unique constraints to prevent
   double booking, daily token sequences per chamber.
 * **Clinical** — consultations with configurable vitals (key/value definitions, not hard-coded

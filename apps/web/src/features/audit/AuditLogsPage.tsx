@@ -12,10 +12,19 @@ import { errorMessage } from '@/utils/errors';
 import { describeDevice, formatDateTime } from '@/utils/format';
 import { describeAction } from './describe';
 
-const RESOURCE_TYPES = ['user', 'session', 'role', 'organization', 'chamber'];
+const RESOURCE_TYPES = ['patient', 'user', 'session', 'role', 'organization', 'chamber'];
 
 function ValueBlock({ label, value }: { label: string; value: unknown }) {
+  const { t } = useTranslation();
   if (value === null || value === undefined) return null;
+  if (typeof value === 'object' && (value as { redacted?: boolean }).redacted) {
+    return (
+      <div className="min-w-0 flex-1">
+        <p className="mb-1 text-2xs font-semibold uppercase tracking-wide text-ink-subtle">{label}</p>
+        <p className="rounded border border-dashed border-border p-2 text-xs italic text-ink-subtle">{t('audit.redacted')}</p>
+      </div>
+    );
+  }
   return (
     <div className="min-w-0 flex-1">
       <p className="mb-1 text-2xs font-semibold uppercase tracking-wide text-ink-subtle">{label}</p>

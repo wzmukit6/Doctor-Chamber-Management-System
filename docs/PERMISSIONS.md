@@ -37,6 +37,7 @@ Legend: ✅ granted by default · — not granted (can be enabled) · 🔒 can n
 | Permission | Key | Super Admin | Manager | Doctor | Assistant |
 |---|---|:-:|:-:|:-:|:-:|
 | View patients | `patients.view` | ✅ | ✅ | ✅ | ✅ |
+| View medical history & allergies | `patients.view_medical` | ✅ | — | ✅ | — |
 | Register patients | `patients.create` | ✅ | ✅ | ✅ | ✅ |
 | Update demographics | `patients.update` | ✅ | ✅ | ✅ | ✅ |
 | Update medical history | `patients.update_medical` | ✅ | — | ✅ | 🔒 |
@@ -130,3 +131,6 @@ Legend: ✅ granted by default · — not granted (can be enabled) · 🔒 can n
 | Users cannot deactivate, delete or admin-reset themselves. | `UsersService` |
 | Audit logs: Super Admin → all; Manager → own chamber; Doctor → own actions. IP/device only shown to Super Admin & Manager. No endpoint can modify audit rows; the database blocks UPDATE/DELETE. | `AuditController`, DB trigger |
 | Super Admin role always holds every permission and cannot be edited. | `RolesService` |
+| Patients are registered in, and only visible to, the actor's active chamber; a platform admin without a chamber cannot register patients. | `PatientsService` |
+| Capturing medical history or allergies at registration additionally requires `patients.update_medical`. | `PatientsService.create` |
+| Medical values in audit logs and the patient timeline are redacted for viewers without `patients.view_medical`. | `AuditController`, `PatientTimelineService` |
