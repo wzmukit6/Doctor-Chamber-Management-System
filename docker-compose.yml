@@ -1,0 +1,18 @@
+# Local development database. Not for production use.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: chamber
+      POSTGRES_PASSWORD: chamber
+      POSTGRES_DB: chamber_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - chamber-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U chamber -d chamber_dev']
+      interval: 5s
+      retries: 10
+volumes:
+  chamber-db:
