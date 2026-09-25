@@ -8,11 +8,36 @@ ships working backend, frontend, tests and documentation before the next one sta
 | 1. Foundation | Project setup, database, authentication, user management, RBAC, organization/chamber architecture, audit trail, API docs | ✅ Done |
 | 2. Patient management | Registration, fast/fuzzy search, profile (demographics + medical info), timeline, Ctrl+K patient search | ✅ Done |
 | 3. Appointments & queue | Calendar (day/week/month), booking with conflict detection, check-in, live token queue | ✅ Done |
-| 4. Clinical workflow | Consultation, configurable vitals, complaints, diagnosis (ICD-ready), investigations, clinical notes | ⏭ Next |
-| 5. Prescriptions | Medicine database, smart builder, templates, finalization, versioning, A4 PDF, QR verification | Planned |
+| 4. Clinical workflow | Consultation, configurable vitals, complaints, diagnosis (ICD-ready), investigations, clinical notes | ✅ Done |
+| 5. Prescriptions | Medicine database, smart builder, templates, finalization, versioning, A4 PDF, QR verification | ⏭ Next |
 | 6. Billing | Fees, payments, receipts, dues, financial reports | Planned |
 | 7. Reports & administration | Dashboard analytics, reports, exports (PDF/CSV/Excel), settings | Planned |
 | 8. Hardening | Security audit, full RBAC matrix tests, performance, backups/restore, deployment | Planned |
+
+## Phase 4 — delivered
+
+* **Consultation workspace**: patient summary (allergies, conditions, medications, previous visits)
+  beside chief complaints (catalogue search, frequently used, free text, durations), history,
+  examination with configurable vitals (BP format, ranges, decimals, automatic BMI), diagnoses
+  (typo-tolerant search by name, ICD-10 code or keyword; primary/secondary; certainty), investigations
+  (priority, instructions, drag to reorder), private clinical notes and follow-up (quick presets).
+* **Autosave** of the whole draft with optimistic locking, Ctrl+S, retry on network errors and a
+  conflict banner if the record changed elsewhere.
+* **Finalize** validates completeness (a complaint or diagnosis, one primary diagnosis, a future
+  follow-up date), locks the record and completes the appointment in one transaction.
+  **Discard draft** keeps the record as cancelled and returns the patient to the queue.
+* **Immutability**: database triggers make finalized consultations and all their child rows
+  unchangeable; consultations can never be deleted; only append-only **addenda** can be added.
+* **Access**: only the consultation's doctor edits/finalizes; managers can read consultations but not
+  private notes or medical history; assistants have no consultation access but can record vitals
+  before the visit (`vitals.record`), which the consultation adopts.
+* **Clinical catalogue** page (investigations, diagnoses, complaints) with global master data
+  (super admin) and chamber-specific entries; deactivate instead of delete. Seeded reference data:
+  38 ICD-10 diagnoses, 30 investigations, 30 complaints, 8 vital fields.
+* **Settings → Vitals & examination** to add chamber-specific fields.
+* Queue "Start consultation" opens the workspace; patient profile gains Start consultation and a
+  Consultations tab; timeline shows consultations, diagnoses, investigations and follow-ups
+  (details hidden without medical access); doctor dashboard shows follow-ups due.
 
 ## Phase 3 — delivered
 

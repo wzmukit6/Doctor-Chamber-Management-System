@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
@@ -10,7 +11,7 @@ import { errorMessage } from '@/utils/errors';
 import { formatDate, formatDateTime } from '@/utils/format';
 
 /** Types with data today; the rest are shown disabled until their module ships. */
-const AVAILABLE: TimelineType[] = ['registration', 'record', 'appointment'];
+const AVAILABLE: TimelineType[] = ['registration', 'record', 'appointment', 'consultation', 'diagnosis', 'investigation', 'follow_up'];
 
 const ICONS: Record<TimelineType, typeof Activity> = {
   registration: UserPlus,
@@ -38,6 +39,13 @@ function EventItem({ event }: { event: TimelineEventDto }) {
         <time dateTime={event.occurredAt}>{formatDateTime(event.occurredAt)}</time>
         {event.actorName && <> · {t('timeline.by', { name: event.actorName })}</>}
       </p>
+      {event.type === 'consultation' && event.details.complaints && <p className="mt-0.5 text-xs text-ink-muted">{event.details.complaints}</p>}
+      {event.type === 'follow_up' && event.details.instructions && <p className="mt-0.5 text-xs text-ink-muted">{event.details.instructions}</p>}
+      {event.details.consultationId && event.type === 'consultation' && (
+        <Link to={`/consultations/${event.details.consultationId}`} className="mt-0.5 inline-block text-xs font-medium text-primary-700 hover:underline">
+          {t('consultation.open')}
+        </Link>
+      )}
       {event.type === 'appointment' && event.details.visitType && (
         <p className="mt-0.5 text-xs text-ink-muted">{t(`visitType.${event.details.visitType}`)}</p>
       )}

@@ -28,6 +28,7 @@ environments.
 | 404 | `NOT_FOUND` (also returned for records in another chamber) |
 | 409 (appointments) | `APPOINTMENT_CONFLICT`, `OUTSIDE_SCHEDULE`, `DAILY_LIMIT_REACHED` — `error.data = { issues, overridable, conflicting }`; resend with `allowOverbook: true` when `overridable`. `INVALID_STATUS_TRANSITION` for actions not allowed in the current status |
 | 403 (appointments) | `NOT_APPOINTMENT_DOCTOR` — only the appointment's doctor may start/complete/return a consultation or call from their queue |
+| 409/422/403 (consultations) | `CONSULTATION_FINALIZED` (edits after finalization), `CONSULTATION_INCOMPLETE` (finalize validation, with `details`), `NOT_CONSULTATION_DOCTOR` |
 | 409 (patients) | `POSSIBLE_DUPLICATE` — `error.data.candidates` lists matching patients; resend with `allowDuplicate: true` to confirm |
 | 409 | `DUPLICATE`, `CONFLICT`, `STALE_VERSION` |
 | 415 | body is not `application/json` |
@@ -124,8 +125,29 @@ Dates (`YYYY-MM-DD`) and times (`HH:MM`) are chamber-local; returned instants ar
 | POST | `/queue/:appointmentId/call` | `queue.manage` | call / call again |
 | POST | `/queue/:appointmentId/hold` · `/resume` | `queue.manage` | |
 
+## Phase 4 endpoints — clinical workflow
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| GET | `/consultations` | `consultations.view` | `patientId`, `doctorId`, `status`, `from`, `to`, paging |
+| GET | `/consultations/follow-ups` | `consultations.view` | `from`, `to`, `doctorId?` — finalized consultations with follow-up in range |
+| GET | `/consultations/:id` | `consultations.view` | includes `context` (allergies, conditions, medications, previous visits); private notes need `clinical_notes.view` |
+| POST | `/consultations` | `consultations.create` (doctors) | `{ patientId, appointmentId? }` — resumes a draft or starts/links today's waiting appointment |
+| PUT | `/consultations/:id` | `consultations.update` + own doctor | whole draft: complaints, history, vitals, examination, diagnoses, investigations, clinicalNotes, follow-up, `version` |
+| POST | `/consultations/:id/finalize` | `consultations.finalize` + own doctor | `{ version }` |
+| POST | `/consultations/:id/cancel` | `consultations.update` + own doctor | `{ reason, version }` |
+| POST | `/consultations/:id/addenda` | `consultations.update` + own doctor | finalized only; append-only |
+| GET / PUT | `/appointments/:id/vitals` | `appointments.view` / `vitals.record` | vitals before the consultation |
+| POST | `/appointments/:id/actions/start` | (Phase 3) | now also opens the draft consultation; response has `consultationId` |
+| GET | `/diagnoses`, `/investigations`, `/complaints` | `diagnosis.view` / `investigations.view` | `q`, `scope` (`all`/`global`/`chamber`), `includeInactive`, `limit` |
+| GET | `/{catalogue}/frequent` | same | most used by the doctor in 180 days |
+| POST / PATCH | `/{catalogue}`, `/{catalogue}/:id` | `diagnosis.manage` / `investigations.manage` | `global: true` or editing global entries needs `system.manage` |
+| POST | `/{catalogue}/:id/status` | same | `{ isActive }` |
+| GET | `/vital-definitions` | signed in | effective fields for the chamber |
+| POST / PATCH | `/vital-definitions`, `/vital-definitions/:id` | `settings.manage` | global fields need `system.manage` |
+
 ## Planned resources
 
-`/api/consultations`, `/api/prescriptions`,
-`/api/medicines`, `/api/diagnoses`, `/api/investigations`, `/api/billing`, `/api/reports`,
+`/api/prescriptions`,
+`/api/medicines`, `/api/billing`, `/api/reports`,
 `/api/settings` (remaining sections) — delivered phase by phase (see [ROADMAP.md](ROADMAP.md)) with the same conventions.

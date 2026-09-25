@@ -1,4 +1,11 @@
 import type {
+  CatalogItemDto,
+  ConsultationContextDto,
+  ConsultationDto,
+  ConsultationSummaryDto,
+  ConsultationVitalDto,
+  SaveConsultationInput,
+  VitalDefinitionDto,
   AppointmentAction,
   AppointmentDto,
   AppointmentHistoryDto,
@@ -141,4 +148,35 @@ export const queueApi = {
 export const settingsApi = {
   appointments: () => api.get<AppointmentSettings & { version: number }>('/settings/appointments'),
   updateAppointments: (input: UpdateAppointmentSettingsInput) => api.put<AppointmentSettings & { version: number }>('/settings/appointments', input),
+};
+
+export type CatalogKind = 'diagnoses' | 'investigations' | 'complaints';
+export type ConsultationDetail = ConsultationDto & { context: ConsultationContextDto };
+
+export const catalogApi = {
+  search: (kind: CatalogKind, params: { q?: string; scope?: string; includeInactive?: boolean; limit?: number }) => api.get<CatalogItemDto[]>(`/${kind}`, params),
+  frequent: (kind: CatalogKind) => api.get<CatalogItemDto[]>(`/${kind}/frequent`),
+  create: (kind: CatalogKind, input: Record<string, unknown>) => api.post<CatalogItemDto>(`/${kind}`, input),
+  update: (kind: CatalogKind, id: string, input: Record<string, unknown>) => api.patch<CatalogItemDto>(`/${kind}/${id}`, input),
+  setStatus: (kind: CatalogKind, id: string, isActive: boolean) => api.post<CatalogItemDto>(`/${kind}/${id}/status`, { isActive }),
+};
+
+export const vitalDefinitionsApi = {
+  list: (includeInactive = false) => api.get<VitalDefinitionDto[]>('/vital-definitions', { includeInactive }),
+  create: (input: Record<string, unknown>) => api.post<VitalDefinitionDto>('/vital-definitions', input),
+  update: (id: string, input: Record<string, unknown>) => api.patch<VitalDefinitionDto>(`/vital-definitions/${id}`, input),
+};
+
+export const consultationsApi = {
+  list: (params: ListParams) => api.page<ConsultationSummaryDto>('/consultations', params),
+  followUps: (params: { from: string; to: string; doctorId?: string }) => api.get<ConsultationSummaryDto[]>('/consultations/follow-ups', params),
+  get: (id: string) => api.get<ConsultationDetail>(`/consultations/${id}`),
+  start: (patientId: string, appointmentId?: string) => api.post<ConsultationDetail>('/consultations', { patientId, appointmentId }),
+  save: (id: string, input: SaveConsultationInput) => api.put<ConsultationDto>(`/consultations/${id}`, input),
+  finalize: (id: string, version: number) => api.post<ConsultationDto>(`/consultations/${id}/finalize`, { version }),
+  cancel: (id: string, reason: string, version: number) => api.post<ConsultationDto>(`/consultations/${id}/cancel`, { reason, version }),
+  addendum: (id: string, text: string) => api.post<ConsultationDto>(`/consultations/${id}/addenda`, { text }),
+  preVitals: (appointmentId: string) => api.get<ConsultationVitalDto[]>(`/appointments/${appointmentId}/vitals`),
+  recordVitals: (appointmentId: string, vitals: { definitionId: string; value: string }[]) =>
+    api.put<ConsultationVitalDto[]>(`/appointments/${appointmentId}/vitals`, { vitals }),
 };

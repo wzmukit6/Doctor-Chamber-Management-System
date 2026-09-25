@@ -42,17 +42,20 @@ erDiagram
     appointments ||--o{ appointment_status_history : "history"
     appointments ||--o| queue_tokens : "token"
     chambers ||--o{ queue_token_sequences : "daily counters"
-    appointments ||--o| consultations : "(planned)"
-    consultations ||--o{ consultation_vitals : "(planned)"
-    consultations ||--o{ consultation_diagnoses : "(planned)"
-    consultations ||--o{ consultation_investigations : "(planned)"
-    consultations ||--o{ consultation_notes : "(planned)"
+    appointments ||--o| consultations : "visit"
+    consultations ||--o{ consultation_vitals : vitals
+    vital_definitions ||--o{ consultation_vitals : defines
+    consultations ||--o{ consultation_symptoms : complaints
+    complaints ||--o{ consultation_symptoms : "catalogue"
+    consultations ||--o{ consultation_diagnoses : diagnoses
+    consultations ||--o{ consultation_investigations : orders
+    consultations ||--o{ consultation_notes : "private notes & addenda"
     consultations ||--o| prescriptions : "(planned)"
     prescriptions ||--o{ prescription_versions : "(planned)"
     prescription_versions ||--o{ prescription_items : "(planned)"
     medicines ||--o{ prescription_items : "(planned)"
-    diagnoses ||--o{ consultation_diagnoses : "(planned)"
-    investigations ||--o{ consultation_investigations : "(planned)"
+    diagnoses ||--o{ consultation_diagnoses : "catalogue"
+    investigations ||--o{ consultation_investigations : "catalogue"
     doctors ||--o{ prescription_templates : "(planned)"
     prescription_templates ||--o{ prescription_template_items : "(planned)"
     consultations ||--o| billing : "(planned)"
@@ -234,12 +237,14 @@ erDiagram
 | `appointments_no_patient_overlap` (EXCLUDE USING gist on `patient_id` + `tstzrange`, active) | a patient can never be in two appointments at once |
 | `queue_tokens (chamber_id, scope_key, queue_date, token_number)` unique + `queue_token_sequences` | race-free daily token numbers |
 | `appointments_cancel_reason`, `appointments_ends_after_start`, `doctor_schedule_windows_valid` CHECKs | data integrity |
+| `consultations_immutable`, `consultations_no_delete` + child-table triggers | finalized consultations cannot change; consultations are never deleted; only ADDENDUM notes may be appended |
+| `consultation_diagnoses_one_primary`, `consultation_notes_one_clinical` (partial unique) | one primary diagnosis, one private note per consultation |
+| `*_scope_name_unique`, `diagnoses_scope_code_unique` (expression indexes) | no duplicate catalogue names/codes per scope (global or chamber) |
+| `diagnoses_name_trgm`, `investigations_name_trgm`, `complaints_name_trgm` | typo-tolerant catalogue search |
 | `patients_blood_group_valid`, `patients_email_lowercase`, `patients_dob_after_1900` CHECKs | data integrity |
 
 ## Planned (next phases)
 
-* **Clinical** — consultations with configurable vitals (key/value definitions, not hard-coded
-  columns), ICD-compatible `diagnoses.code`.
 * **Prescriptions** — `prescriptions` (RX number, state machine DRAFT → FINALIZED → REVISED →
   SUPERSEDED), immutable `prescription_versions` + `prescription_items`, unique constraint
   preventing two finalized versions for the same revision.

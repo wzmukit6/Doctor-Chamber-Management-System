@@ -48,6 +48,9 @@ md += `
 | Capturing medical history or allergies at registration additionally requires \`patients.update_medical\`. | \`PatientsService.create\` |
 | Only the appointment's doctor can start, complete or return a consultation, and a doctor can only call patients from their own queue (\`NOT_APPOINTMENT_DOCTOR\`). | \`AppointmentsService.act\`, \`QueueService\` |
 | Appointment actions follow an explicit status machine; each action additionally requires its own permission (e.g. check-in → \`queue.manage\`, start → \`consultations.create\`, cancel → \`appointments.cancel\` + reason). | \`AppointmentsService.act\` |
+| Only the consultation's doctor can edit, finalize, cancel or add addenda (\`NOT_CONSULTATION_DOCTOR\`); finalized consultations are immutable (API + database triggers). | \`ConsultationsService\`, DB triggers |
+| Private clinical notes are returned only with \`clinical_notes.view\`; the patient context (allergies, conditions) only with \`patients.view_medical\`. | \`ConsultationsService\` |
+| Global catalogue entries and vital fields are changed only with \`system.manage\`; chamber entries only by that chamber. | \`CatalogService\`, \`VitalDefinitionsService\` |
 | Medical values in audit logs and the patient timeline are redacted for viewers without \`patients.view_medical\`. | \`AuditController\`, \`PatientTimelineService\` |
 `;
 

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
-import { BellRing, Megaphone, Pause, Play, Plus, Radio, UserCheck } from 'lucide-react';
+import { Activity, BellRing, ClipboardList, Megaphone, Pause, Play, Plus, Radio, UserCheck } from 'lucide-react';
 import { PERMISSIONS, zonedDate, type AppointmentAction, type QueueEntryDto } from '@chamber/shared';
 import { ActionMenu, Badge, Button, ConfirmDialog, EmptyState, ErrorState, Input, PageHeader, Select, Skeleton, useToast } from '@/components/ui';
 import { appointmentsApi, queueApi } from '@/services/endpoints';
@@ -15,6 +15,7 @@ import { AppointmentStatusBadge, TokenPill } from './components/AppointmentBits'
 import { availableActions } from './components/appointmentActions';
 import { AppointmentDetailModal } from './components/AppointmentDetailModal';
 import { BookAppointmentModal } from './components/BookAppointmentModal';
+import { RecordVitalsModal } from '@/features/consultations/components/RecordVitalsModal';
 
 const REFRESH_MS = 10_000;
 
@@ -33,6 +34,8 @@ export function QueuePage() {
   const [cancelling, setCancelling] = useState<QueueEntryDto | null>(null);
   const [walkIn, setWalkIn] = useState(false);
   const [announce, setAnnounce] = useState<string | null>(null);
+  const [vitalsFor, setVitalsFor] = useState<QueueEntryDto | null>(null);
+  const navigate = useNavigate();
   const isToday = date === today;
 
   const q = useQuery({
@@ -69,9 +72,11 @@ export function QueuePage() {
   });
   const apptAction = useMutation({
     mutationFn: ({ id, action, reason }: { id: string; action: AppointmentAction; reason?: string }) => appointmentsApi.act(id, action, { reason }),
-    onSuccess: () => {
+    onSuccess: (appt, v) => {
       setCancelling(null);
       refresh();
+      // Starting the visit opens the consultation workspace.
+      if (v.action === 'start' && appt.consultationId) navigate(`/consultations/${appt.consultationId}`);
     },
     onError,
   });
@@ -259,7 +264,12 @@ export function QueuePage() {
                       <td className="hidden text-ink-muted lg:table-cell">{e.doctor.fullName}</td>
                       <td className="whitespace-nowrap text-right">
                         <div className="inline-flex items-center gap-1.5">
-                          {primary && (
+                          {e.status === 'IN_CONSULTATION' && e.consultationId && can(PERMISSIONS.CONSULTATIONS_VIEW) && ownQueue && (
+                            <Button size="sm" icon={<ClipboardList className="h-3.5 w-3.5" />} onClick={() => navigate(`/consultations/${e.consultationId}`)}>
+                              {t('consultation.open')}
+                            </Button>
+                          )}
+                          {primary && !(e.status === 'IN_CONSULTATION' && e.consultationId && ownQueue && can(PERMISSIONS.CONSULTATIONS_VIEW)) && (
                             <Button
                               size="sm"
                               variant={primary === 'send-to-queue' ? 'secondary' : 'primary'}
@@ -288,6 +298,12 @@ export function QueuePage() {
                               ...actions
                                 .filter((a) => a !== primary && a !== 'cancel' && a !== 'no-show')
                                 .map((a) => ({ label: t(`appointments.${a.replace(/-/g, '_')}`), onSelect: () => apptAction.mutate({ id: e.id, action: a }) })),
+                              {
+                                label: t('consultation.record_vitals'),
+                                icon: <Activity className="h-4 w-4" />,
+                                hidden: !can(PERMISSIONS.VITALS_RECORD) || !['CHECKED_IN', 'WAITING', 'IN_CONSULTATION'].includes(e.status),
+                                onSelect: () => setVitalsFor(e),
+                              },
                               { label: t('appointments.details'), onSelect: () => setSelected(e.id) },
                               { label: t('appointments.no_show'), hidden: !actions.includes('no-show'), tone: 'danger', onSelect: () => apptAction.mutate({ id: e.id, action: 'no-show' }) },
                               { label: t('appointments.cancel'), hidden: !actions.includes('cancel'), tone: 'danger', onSelect: () => setCancelling(e) },
@@ -305,6 +321,7 @@ export function QueuePage() {
       </div>
 
       <AppointmentDetailModal appointmentId={selected} onClose={() => setSelected(null)} />
+      <RecordVitalsModal appointmentId={vitalsFor?.id ?? null} patientName={vitalsFor?.patient.fullName} onClose={() => setVitalsFor(null)} />
       <BookAppointmentModal open={walkIn} onClose={() => setWalkIn(false)} defaults={{ doctorId: doctorId || undefined, walkIn: true }} />
       <ConfirmDialog
         open={!!cancelling}

@@ -17,8 +17,10 @@ import { MedicalHistoryPanel } from './components/MedicalHistoryPanel';
 import { PatientTimeline } from './components/Timeline';
 import { BookAppointmentModal } from '@/features/appointments/components/BookAppointmentModal';
 import { PatientAppointments } from '@/features/appointments/components/PatientAppointments';
+import { PatientConsultations } from '@/features/consultations/components/PatientConsultations';
+import { consultationsApi } from '@/services/endpoints';
 
-type Tab = 'overview' | 'medical' | 'timeline' | 'appointments';
+type Tab = 'overview' | 'medical' | 'timeline' | 'appointments' | 'consultations';
 
 function Detail({ label, children, icon }: { label: string; children: ReactNode; icon?: ReactNode }) {
   return (
@@ -39,7 +41,8 @@ export function PatientProfilePage() {
   const navigate = useNavigate();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+  const [starting, setStarting] = useState(false);
   const [tab, setTab] = useState<Tab>('overview');
   const [deleting, setDeleting] = useState(false);
   const [booking, setBooking] = useState(false);
@@ -71,6 +74,7 @@ export function PatientProfilePage() {
     { key: 'overview', label: t('patients.tab_overview') },
     ...(p.medical ? [{ key: 'medical' as const, label: t('patients.tab_medical') }] : []),
     { key: 'timeline', label: t('patients.tab_timeline') },
+    ...(can(PERMISSIONS.CONSULTATIONS_VIEW) ? [{ key: 'consultations' as const, label: t('consultation.list_title') }] : []),
     ...(can(PERMISSIONS.APPOINTMENTS_VIEW) ? [{ key: 'appointments' as const, label: t('patients.tab_appointments') }] : []),
     { key: 'prescriptions', label: t('patients.tab_prescriptions'), disabled: true },
   ];
@@ -111,8 +115,23 @@ export function PatientProfilePage() {
                 {t('patients.new_appointment')}
               </Button>
             )}
-            {can(PERMISSIONS.CONSULTATIONS_CREATE) && (
-              <Button size="sm" icon={<Stethoscope className="h-4 w-4" />} disabled title={t('common.coming_soon')}>
+            {can(PERMISSIONS.CONSULTATIONS_CREATE) && user?.doctorId && (
+              <Button
+                size="sm"
+                icon={<Stethoscope className="h-4 w-4" />}
+                loading={starting}
+                onClick={async () => {
+                  setStarting(true);
+                  try {
+                    const c = await consultationsApi.start(p.id);
+                    navigate(`/consultations/${c.id}`);
+                  } catch (err) {
+                    toast.error(errorMessage(err));
+                  } finally {
+                    setStarting(false);
+                  }
+                }}
+              >
                 {t('patients.start_consultation')}
               </Button>
             )}
@@ -219,6 +238,7 @@ export function PatientProfilePage() {
         {tab === 'medical' && p.medical && <MedicalHistoryPanel patient={p} />}
         {tab === 'timeline' && <PatientTimeline patientId={p.id} />}
         {tab === 'appointments' && <PatientAppointments patientId={p.id} />}
+        {tab === 'consultations' && <PatientConsultations patientId={p.id} />}
       </div>
 
       <BookAppointmentModal open={booking} onClose={() => setBooking(false)} defaults={{ patient: p }} />

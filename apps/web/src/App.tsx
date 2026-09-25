@@ -23,6 +23,9 @@ const PatientFormPage = lazy(() => import('@/features/patients/PatientFormPage')
 const PatientProfilePage = lazy(() => import('@/features/patients/PatientProfilePage').then((m) => ({ default: m.PatientProfilePage })));
 const AppointmentsPage = lazy(() => import('@/features/appointments/AppointmentsPage').then((m) => ({ default: m.AppointmentsPage })));
 const QueuePage = lazy(() => import('@/features/appointments/QueuePage').then((m) => ({ default: m.QueuePage })));
+const ConsultationsPage = lazy(() => import('@/features/consultations/ConsultationsPage').then((m) => ({ default: m.ConsultationsPage })));
+const ConsultationPage = lazy(() => import('@/features/consultations/ConsultationPage').then((m) => ({ default: m.ConsultationPage })));
+const CataloguePage = lazy(() => import('@/features/catalog/CataloguePage').then((m) => ({ default: m.CataloguePage })));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const ProfilePage = lazy(() => import('@/features/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 
@@ -125,6 +128,36 @@ export function App() {
             <Suspense fallback={<FullPageSpinner />}>
               <RequirePermission permission={PERMISSIONS.SETTINGS_VIEW}>
                 <SettingsPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="consultations"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.CONSULTATIONS_VIEW}>
+                <ConsultationsPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="consultations/:id"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.CONSULTATIONS_VIEW}>
+                <ConsultationPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="investigations"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.INVESTIGATIONS_VIEW}>
+                <CataloguePage />
               </RequirePermission>
             </Suspense>
           }

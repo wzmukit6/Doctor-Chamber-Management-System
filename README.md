@@ -4,10 +4,11 @@
 consultations, prescriptions, billing and reports for doctors' chambers, with strict role-based
 access control, multi-chamber tenancy and a tamper-evident audit trail.
 
-> The application is delivered phase by phase. **Phases 1–3 are complete**: foundation
+> The application is delivered phase by phase. **Phases 1–4 are complete**: foundation
 > (authentication, users, roles & permissions, organizations/chambers, audit logs), patient
 > management (registration, search, profile, medical history, timeline) and appointments & queue
-> (calendar, doctor schedules, booking with conflict prevention, check-in, live token queue).
+> (calendar, doctor schedules, booking with conflict prevention, check-in, live token queue) and the
+> clinical workflow (consultation workspace, vitals, diagnoses, investigations, finalization).
 > See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Documentation

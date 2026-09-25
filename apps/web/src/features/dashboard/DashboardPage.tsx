@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { addDays, PERMISSIONS, zonedDate, type RoleKey } from '@chamber/shared';
 import { useAuth } from '@/stores/auth';
-import { appointmentsApi, auditApi, organizationsApi, chambersApi, patientsApi, queueApi, usersApi } from '@/services/endpoints';
+import { appointmentsApi, auditApi, consultationsApi, organizationsApi, chambersApi, patientsApi, queueApi, usersApi } from '@/services/endpoints';
 import { useChamberTz, useToday } from '@/hooks/useChamber';
 import { BookAppointmentModal } from '@/features/appointments/components/BookAppointmentModal';
 import { PatientLine } from '@/features/patients/components/PatientBits';
@@ -169,8 +169,8 @@ const ROADMAP: { phase: number; key: string; status: 'done' | 'next' | 'planned'
   { phase: 1, key: 'Foundation — auth, users, RBAC, chambers, audit', status: 'done' },
   { phase: 2, key: 'Patient management — registration, search, profile, timeline', status: 'done' },
   { phase: 3, key: 'Appointments & queue', status: 'done' },
-  { phase: 4, key: 'Clinical workflow — consultation, vitals, diagnosis', status: 'next' },
-  { phase: 5, key: 'Prescriptions — builder, templates, versioning, PDF', status: 'planned' },
+  { phase: 4, key: 'Clinical workflow — consultation, vitals, diagnosis', status: 'done' },
+  { phase: 5, key: 'Prescriptions — builder, templates, versioning, PDF', status: 'next' },
   { phase: 6, key: 'Billing & payments', status: 'planned' },
   { phase: 7, key: 'Reports, analytics & settings', status: 'planned' },
   { phase: 8, key: 'Hardening & deployment', status: 'planned' },
@@ -347,6 +347,12 @@ function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => 
   const doctor = role === 'DOCTOR';
   const [booking, setBooking] = useState(false);
   const queue = useTodayQueue(doctor ? (user?.doctorId ?? undefined) : undefined);
+  const today = useToday();
+  const followUps = useQuery({
+    queryKey: ['consultations', 'follow-ups', today, user?.doctorId ?? ''],
+    queryFn: () => consultationsApi.followUps({ from: today, to: addDays(today, 7), doctorId: user?.doctorId ?? undefined }),
+    enabled: doctor && can(PERMISSIONS.CONSULTATIONS_VIEW),
+  });
   const s = queue.data?.summary;
   const total = queue.data?.entries.length;
   return (
@@ -370,7 +376,7 @@ function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => 
             onClick={() => setBooking(true)}
           />
           {doctor ? (
-            <QuickAction label={t('dashboard.start_consultation')} icon={<Stethoscope className="h-4 w-4" />} disabled />
+            <QuickAction label={t('dashboard.start_consultation')} icon={<Stethoscope className="h-4 w-4" />} onClick={() => navigate('/queue')} />
           ) : (
             <QuickAction label={t('nav.queue')} icon={<ListOrdered className="h-4 w-4" />} onClick={() => navigate('/queue')} />
           )}
@@ -382,7 +388,14 @@ function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => 
         {doctor ? (
           <>
             <StatCard label={t('dashboard.completed_consultations')} value={s?.completed} loading={queue.isLoading} icon={<ClipboardCheck className="h-5 w-5" />} to="/queue" />
-            <PendingCard label={t('dashboard.followups_due')} icon={<CalendarClock className="h-5 w-5" />} module={t('nav.consultations')} />
+            <StatCard
+              label={t('dashboard.followups_due')}
+              value={followUps.data?.length}
+              loading={followUps.isLoading}
+              hint={t('dashboard.follow_ups_week')}
+              icon={<CalendarClock className="h-5 w-5" />}
+              to="/consultations"
+            />
           </>
         ) : (
           <>

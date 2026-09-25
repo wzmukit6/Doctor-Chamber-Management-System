@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { CalendarClock, Clock, History, Stethoscope, User } from 'lucide-react';
@@ -45,6 +45,7 @@ export function AppointmentDetailModal({ appointmentId, onClose }: { appointment
   const [busy, setBusy] = useState<string | null>(null);
   const [resched, setResched] = useState({ date: today, time: '', doctorId: '', reason: '' });
   const [overbookNeeded, setOverbookNeeded] = useState<string[] | null>(null);
+  const navigate = useNavigate();
 
   const q = useQuery({ queryKey: ['appointments', 'detail', appointmentId], queryFn: () => appointmentsApi.get(appointmentId!), enabled: !!appointmentId });
   const a: AppointmentDetail | undefined = q.data;
@@ -66,7 +67,11 @@ export function AppointmentDetailModal({ appointmentId, onClose }: { appointment
     if (!a) return;
     setBusy(action);
     try {
-      await appointmentsApi.act(a.id, action, { reason: reason ?? null });
+      const updated = await appointmentsApi.act(a.id, action, { reason: reason ?? null });
+      if (action === 'start' && updated.consultationId) {
+        onClose();
+        navigate(`/consultations/${updated.consultationId}`);
+      }
       toast.success(action === 'cancel' ? t('appointments.cancelled') : `${t(ACTION_LABEL[action])} ✓`);
       setConfirming(null);
       refresh();
@@ -166,7 +171,7 @@ export function AppointmentDetailModal({ appointmentId, onClose }: { appointment
                 )}
               </div>
             )}
-            {(actions.length > 0 || canReschedule) && (
+            {(actions.length > 0 || canReschedule || !!a.consultationId) && (
               <div className="flex flex-wrap gap-2 border-t border-border pt-4">
                 {actions.map((action) => (
                   <Button
@@ -179,6 +184,11 @@ export function AppointmentDetailModal({ appointmentId, onClose }: { appointment
                     {t(ACTION_LABEL[action])}
                   </Button>
                 ))}
+                {a.consultationId && can(PERMISSIONS.CONSULTATIONS_VIEW) && (
+                  <Button size="sm" variant="secondary" onClick={() => (onClose(), navigate(`/consultations/${a.consultationId}`))}>
+                    {t('consultation.open')}
+                  </Button>
+                )}
                 {canReschedule && (
                   <Button size="sm" variant="secondary" onClick={() => setMode('reschedule')}>
                     {t('appointments.reschedule')}

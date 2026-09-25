@@ -8,6 +8,7 @@ import { Badge, Button, ErrorState, Field, Input, PageHeader, Select, Skeleton, 
 import { doctorsApi, settingsApi } from '@/services/endpoints';
 import { useAuth } from '@/stores/auth';
 import { useDoctors } from '@/hooks/useChamber';
+import { VitalsSettings } from './VitalsSettings';
 import { errorMessage, translateMessage } from '@/utils/errors';
 
 /** Display order: Saturday first (Bangladesh work week). */
@@ -16,13 +17,13 @@ const WEEK = [6, 0, 1, 2, 3, 4, 5];
 /** Settings (spec §34). Phase 3 delivers appointment/token settings and doctor schedules. */
 export function SettingsPage() {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<'appointments' | 'schedules'>('appointments');
+  const [tab, setTab] = useState<'appointments' | 'schedules' | 'vitals'>('appointments');
   return (
     <div>
       <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
       <div className="mb-4 border-b border-border" role="tablist">
         <div className="-mb-px flex gap-1">
-          {(['appointments', 'schedules'] as const).map((k) => (
+          {(['appointments', 'schedules', 'vitals'] as const).map((k) => (
             <button
               key={k}
               role="tab"
@@ -36,7 +37,7 @@ export function SettingsPage() {
           ))}
         </div>
       </div>
-      {tab === 'appointments' ? <AppointmentSettingsForm /> : <DoctorSchedules />}
+      {tab === 'appointments' ? <AppointmentSettingsForm /> : tab === 'schedules' ? <DoctorSchedules /> : <VitalsSettings />}
     </div>
   );
 }
