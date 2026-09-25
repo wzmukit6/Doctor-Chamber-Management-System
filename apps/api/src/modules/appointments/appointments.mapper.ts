@@ -6,6 +6,7 @@ export const appointmentInclude = {
   patient: { select: { id: true, patientCode: true, fullName: true, gender: true, dateOfBirth: true, phone: true } },
   doctor: { select: { id: true, specialty: true, user: { select: { fullName: true } } } },
   token: true,
+  consultation: { select: { id: true } },
 } satisfies Prisma.AppointmentInclude;
 
 export type AppointmentRow = Prisma.AppointmentGetPayload<{ include: typeof appointmentInclude }>;
@@ -46,6 +47,7 @@ export function toAppointmentDto(a: AppointmentRow): AppointmentDto {
     createdByName: a.createdByName,
     createdAt: a.createdAt.toISOString(),
     version: a.version,
+    consultationId: a.consultation?.id ?? null,
   };
 }
 

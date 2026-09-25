@@ -16,6 +16,9 @@ export interface TimelineProvider {
 
 const MEDICAL_TITLE_KEYS = new Set(['timeline.medical_history_updated', 'timeline.allergy_added', 'timeline.allergy_removed']);
 
+/** Clinical event types whose details require `patients.view_medical`. */
+const MEDICAL_TYPES = new Set<TimelineType>(['consultation', 'diagnosis', 'investigation', 'follow_up']);
+
 const RECORD_ACTIONS: Record<string, string> = {
   'patient.updated': 'timeline.patient_updated',
   'patient.medical_history_updated': 'timeline.medical_history_updated',
@@ -57,7 +60,9 @@ export class PatientTimelineService {
       .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
     // Viewers without medical access see that a medical change happened, but not what changed.
     const canSeeMedical = actor.permissions.has(PERMISSIONS.PATIENTS_VIEW_MEDICAL);
-    const visible = events.map((e) => (canSeeMedical || !MEDICAL_TITLE_KEYS.has(e.titleKey) ? e : { ...e, details: {} }));
+    const visible = events.map((e) =>
+      canSeeMedical || (!MEDICAL_TITLE_KEYS.has(e.titleKey) && !MEDICAL_TYPES.has(e.type)) ? e : { ...e, details: e.type === 'follow_up' ? { date: e.details.date ?? null } : {} },
+    );
     return { events: visible.slice(0, opts.limit), hasMore: visible.length > opts.limit };
   }
 

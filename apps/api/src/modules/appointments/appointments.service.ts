@@ -29,6 +29,7 @@ import { AppError } from '../../common/errors/app-error';
 import { Actor } from '../../common/request-context';
 import { appointmentInclude, AppointmentRow, toAppointmentDto, toHistoryDto } from './appointments.mapper';
 import { fitsSchedule, isOverlapViolation, overlaps, windowsFor } from './appointment-rules';
+import { createDraftConsultation } from '../consultations/consultation-factory';
 
 type Tx = Prisma.TransactionClient;
 type BookingIssue = 'doctor_busy' | 'outside_schedule' | 'daily_limit';
@@ -354,6 +355,19 @@ export class AppointmentsService {
       }
       if (def.to === 'IN_CONSULTATION' || def.to === 'COMPLETED') {
         await tx.queueToken.updateMany({ where: { appointmentId: id }, data: { onHold: false } });
+      }
+      // Starting the visit opens (or resumes) the consultation record for this appointment.
+      if (def.to === 'IN_CONSULTATION') {
+        const existing = await tx.consultation.findUnique({ where: { appointmentId: id }, select: { id: true, status: true } });
+        if (!existing) {
+          await createDraftConsultation(tx, this.audit, actor, {
+            organizationId: chamber.organizationId,
+            chamberId: chamber.id,
+            patientId: appt.patientId,
+            doctorId: appt.doctorId,
+            appointmentId: id,
+          });
+        }
       }
       await this.audit.record(
         actor,

@@ -214,6 +214,8 @@ export interface AppointmentDto {
   createdByName: string | null;
   createdAt: string;
   version: number;
+  /** Consultation started from this appointment, if any. */
+  consultationId: string | null;
 }
 
 export interface AppointmentHistoryDto {
@@ -254,4 +256,111 @@ export interface QueueDto {
   timezone: string;
   entries: QueueEntryDto[];
   summary: { waiting: number; onHold: number; inConsultation: number; completed: number; checkedIn: number; booked: number };
+}
+
+export interface CatalogItemDto {
+  id: string;
+  name: string;
+  code?: string | null;
+  codeSystem?: string | null;
+  shortName?: string | null;
+  category: string | null;
+  description?: string | null;
+  sampleType?: string | null;
+  instructions?: string | null;
+  keywords?: string | null;
+  isActive: boolean;
+  isGlobal: boolean;
+  usageCount?: number;
+}
+
+export interface VitalDefinitionDto {
+  id: string;
+  key: string;
+  label: string;
+  unit: string | null;
+  type: 'NUMBER' | 'BLOOD_PRESSURE' | 'TEXT';
+  minValue: number | null;
+  maxValue: number | null;
+  decimals: number;
+  sortOrder: number;
+  isActive: boolean;
+  isGlobal: boolean;
+}
+
+export interface ConsultationVitalDto {
+  definitionId: string;
+  key: string;
+  label: string;
+  unit: string | null;
+  value: string;
+  recordedByName: string | null;
+  recordedAt: string;
+}
+
+export interface ConsultationDto {
+  id: string;
+  chamberId: string;
+  status: 'DRAFT' | 'FINALIZED' | 'CANCELLED';
+  visitNumber: number;
+  patient: {
+    id: string;
+    patientCode: string;
+    fullName: string;
+    gender: string;
+    age: number | null;
+    dobEstimated: boolean;
+    bloodGroup: string | null;
+    phone: string | null;
+  };
+  doctor: { id: string; fullName: string; specialty: string | null; qualifications: string | null; registrationNo: string | null };
+  appointmentId: string | null;
+  complaints: { id: string; complaintId: string | null; text: string; duration: string | null; note: string | null }[];
+  presentIllness: string | null;
+  pastHistory: string | null;
+  familyHistory: string | null;
+  medicationHistory: string | null;
+  otherHistory: string | null;
+  vitals: ConsultationVitalDto[];
+  examinationNotes: string | null;
+  diagnoses: { id: string; diagnosisId: string | null; name: string; code: string | null; isPrimary: boolean; certainty: string; note: string | null }[];
+  investigations: { id: string; investigationId: string | null; name: string; instructions: string | null; priority: string }[];
+  /** null when the viewer lacks `clinical_notes.view`. */
+  clinicalNotes: string | null;
+  clinicalNotesHidden: boolean;
+  addenda: { id: string; text: string; createdByName: string | null; createdAt: string }[];
+  followUpDate: string | null;
+  followUpInstructions: string | null;
+  startedAt: string;
+  finalizedAt: string | null;
+  finalizedByName: string | null;
+  cancelledReason: string | null;
+  updatedAt: string;
+  version: number;
+  /** Can the current user edit / finalize this consultation? */
+  canEdit: boolean;
+}
+
+export interface ConsultationSummaryDto {
+  id: string;
+  status: 'DRAFT' | 'FINALIZED' | 'CANCELLED';
+  visitNumber: number;
+  patient: { id: string; patientCode: string; fullName: string; age: number | null; gender: string };
+  doctor: { id: string; fullName: string };
+  primaryDiagnosis: string | null;
+  diagnosisCount: number;
+  complaints: string[];
+  investigationCount: number;
+  followUpDate: string | null;
+  startedAt: string;
+  finalizedAt: string | null;
+}
+
+/** Patient context shown beside the consultation form (spec §9 "Patient Summary"). */
+export interface ConsultationContextDto {
+  allergies: AllergyDto[];
+  existingConditions: string | null;
+  currentMedications: string | null;
+  previousVisits: ConsultationSummaryDto[];
+  medicalHidden: boolean;
 }

@@ -11,3 +11,4 @@ export * from './schemas/patients';
 export * from './time';
 export * from './appointments';
 export * from './schemas/appointments';
+export * from './schemas/clinical';

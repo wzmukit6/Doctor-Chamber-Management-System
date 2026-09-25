@@ -16,6 +16,8 @@ import { PatientsModule } from './modules/patients/patients.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { DoctorsModule } from './modules/doctors/doctors.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
+import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { AuthGuard } from './common/guards/auth.guard';
@@ -40,6 +42,8 @@ const config = loadConfig();
     SettingsModule,
     DoctorsModule,
     AppointmentsModule,
+    CatalogModule,
+    ConsultationsModule,
     HealthModule,
   ],
   providers: [

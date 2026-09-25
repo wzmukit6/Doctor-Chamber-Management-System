@@ -54,11 +54,16 @@ model Chamber {
   deletedById    String?   @map("deleted_by") @db.Uuid
   deletionReason String?   @map("deletion_reason") @db.VarChar(500)
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  memberships  UserRole[]
-  doctors      Doctor[]
-  patients     Patient[]
-  appointments Appointment[]
+  organization         Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships          UserRole[]
+  doctors              Doctor[]
+  patients             Patient[]
+  appointments         Appointment[]
+  consultations        Consultation[]
+  vitalDefinitions     VitalDefinition[]
+  complaintCatalog     ComplaintCatalog[]
+  investigationCatalog InvestigationCatalog[]
+  diagnosisCatalog     DiagnosisCatalog[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -183,10 +188,11 @@ model Doctor {
   slotMinutes      Int? @map("slot_minutes")
   maxDailyPatients Int? @map("max_daily_patients")
 
-  user         User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
-  chamber      Chamber                @relation(fields: [chamberId], references: [id], onDelete: Restrict)
-  schedule     DoctorScheduleWindow[]
-  appointments Appointment[]
+  user          User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  chamber       Chamber                @relation(fields: [chamberId], references: [id], onDelete: Restrict)
+  schedule      DoctorScheduleWindow[]
+  appointments  Appointment[]
+  consultations Consultation[]
 
   @@unique([userId, chamberId])
   @@index([chamberId])
@@ -338,6 +344,7 @@ model Patient {
   medicalHistory PatientMedicalHistory?
   recentViews    PatientRecentView[]
   appointments   Appointment[]
+  consultations  Consultation[]
 
   @@unique([chamberId, patientCode])
   @@index([chamberId, createdAt])
@@ -494,11 +501,13 @@ model Appointment {
   createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  chamber Chamber                    @relation(fields: [chamberId], references: [id], onDelete: Restrict)
-  patient Patient                    @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  doctor  Doctor                     @relation(fields: [doctorId], references: [id], onDelete: Restrict)
-  history AppointmentStatusHistory[]
-  token   QueueToken?
+  chamber      Chamber                    @relation(fields: [chamberId], references: [id], onDelete: Restrict)
+  patient      Patient                    @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  doctor       Doctor                     @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  history      AppointmentStatusHistory[]
+  token        QueueToken?
+  consultation Consultation?
+  vitals       ConsultationVital[]
 
   @@index([chamberId, startsAt])
   @@index([doctorId, startsAt])
@@ -556,4 +565,258 @@ model QueueTokenSequence {
 
   @@id([chamberId, scopeKey, queueDate])
   @@map("queue_token_sequences")
+}
+
+// ─────────────────────────── Clinical workflow (Phase 4) ───────────────────────────
+
+enum ConsultationStatus {
+  DRAFT
+  FINALIZED
+  CANCELLED
+}
+
+enum DiagnosisCertainty {
+  CONFIRMED
+  PROVISIONAL
+  DIFFERENTIAL
+}
+
+enum InvestigationPriority {
+  ROUTINE
+  URGENT
+  STAT
+}
+
+enum VitalType {
+  NUMBER
+  BLOOD_PRESSURE
+  TEXT
+}
+
+enum ConsultationNoteType {
+  CLINICAL
+  ADDENDUM
+}
+
+/// Diagnosis master (spec §16). chamber_id NULL = platform-wide entry. ICD-compatible code.
+model DiagnosisCatalog {
+  id          String   @id @default(uuid()) @db.Uuid
+  chamberId   String?  @map("chamber_id") @db.Uuid
+  name        String   @db.VarChar(200)
+  code        String?  @db.VarChar(20)
+  codeSystem  String   @default("ICD-10") @map("code_system") @db.VarChar(20)
+  category    String?  @db.VarChar(100)
+  description String?  @db.VarChar(1000)
+  keywords    String?  @db.VarChar(300)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdById String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  chamber Chamber?                @relation(fields: [chamberId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "diagnoses_chamber_fk")
+  usages  ConsultationDiagnosis[]
+
+  @@index([chamberId])
+  @@map("diagnoses")
+}
+
+/// Investigation / test master (spec §17).
+model InvestigationCatalog {
+  id           String   @id @default(uuid()) @db.Uuid
+  chamberId    String?  @map("chamber_id") @db.Uuid
+  name         String   @db.VarChar(200)
+  shortName    String?  @map("short_name") @db.VarChar(40)
+  category     String?  @db.VarChar(100)
+  sampleType   String?  @map("sample_type") @db.VarChar(60)
+  instructions String?  @db.VarChar(500)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdById  String?  @map("created_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  chamber Chamber?                    @relation(fields: [chamberId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "investigations_chamber_fk")
+  usages  ConsultationInvestigation[]
+
+  @@index([chamberId])
+  @@map("investigations")
+}
+
+/// Predefined chief complaints (spec §9 "searchable predefined complaints").
+model ComplaintCatalog {
+  id          String   @id @default(uuid()) @db.Uuid
+  chamberId   String?  @map("chamber_id") @db.Uuid
+  name        String   @db.VarChar(200)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdById String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  chamber Chamber?              @relation(fields: [chamberId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "complaints_chamber_fk")
+  usages  ConsultationSymptom[]
+
+  @@index([chamberId])
+  @@map("complaints")
+}
+
+/// Configurable examination fields (spec §9: "Do not hard-code only these fields").
+model VitalDefinition {
+  id        String    @id @default(uuid()) @db.Uuid
+  chamberId String?   @map("chamber_id") @db.Uuid
+  key       String    @db.VarChar(40)
+  label     String    @db.VarChar(60)
+  unit      String?   @db.VarChar(20)
+  type      VitalType @default(NUMBER)
+  minValue  Decimal?  @map("min_value") @db.Decimal(10, 2)
+  maxValue  Decimal?  @map("max_value") @db.Decimal(10, 2)
+  decimals  Int       @default(0) @db.SmallInt
+  sortOrder Int       @default(100) @map("sort_order")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  chamber Chamber?            @relation(fields: [chamberId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "vital_definitions_chamber_fk")
+  values  ConsultationVital[]
+
+  @@map("vital_definitions")
+}
+
+model Consultation {
+  id                   String             @id @default(uuid()) @db.Uuid
+  organizationId       String             @map("organization_id") @db.Uuid
+  chamberId            String             @map("chamber_id") @db.Uuid
+  patientId            String             @map("patient_id") @db.Uuid
+  doctorId             String             @map("doctor_id") @db.Uuid
+  appointmentId        String?            @unique @map("appointment_id") @db.Uuid
+  status               ConsultationStatus @default(DRAFT)
+  visitNumber          Int                @map("visit_number")
+  presentIllness       String?            @map("present_illness") @db.VarChar(4000)
+  pastHistory          String?            @map("past_history") @db.VarChar(4000)
+  familyHistory        String?            @map("family_history") @db.VarChar(2000)
+  medicationHistory    String?            @map("medication_history") @db.VarChar(2000)
+  otherHistory         String?            @map("other_history") @db.VarChar(2000)
+  examinationNotes     String?            @map("examination_notes") @db.VarChar(4000)
+  followUpDate         DateTime?          @map("follow_up_date") @db.Date
+  followUpInstructions String?            @map("follow_up_instructions") @db.VarChar(500)
+  startedAt            DateTime           @default(now()) @map("started_at") @db.Timestamptz(3)
+  finalizedAt          DateTime?          @map("finalized_at") @db.Timestamptz(3)
+  finalizedById        String?            @map("finalized_by") @db.Uuid
+  finalizedByName      String?            @map("finalized_by_name") @db.VarChar(150)
+  cancelledAt          DateTime?          @map("cancelled_at") @db.Timestamptz(3)
+  cancelledReason      String?            @map("cancelled_reason") @db.VarChar(500)
+  isDemo               Boolean            @default(false) @map("is_demo")
+  version              Int                @default(1)
+  createdById          String?            @map("created_by") @db.Uuid
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  chamber        Chamber                     @relation(fields: [chamberId], references: [id], onDelete: Restrict)
+  patient        Patient                     @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  doctor         Doctor                      @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  appointment    Appointment?                @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  symptoms       ConsultationSymptom[]
+  vitals         ConsultationVital[]
+  diagnoses      ConsultationDiagnosis[]
+  investigations ConsultationInvestigation[]
+  notes          ConsultationNote[]
+
+  @@index([chamberId, startedAt])
+  @@index([patientId, startedAt])
+  @@index([doctorId, startedAt])
+  @@index([chamberId, followUpDate])
+  @@map("consultations")
+}
+
+model ConsultationSymptom {
+  id             String   @id @default(uuid()) @db.Uuid
+  consultationId String   @map("consultation_id") @db.Uuid
+  complaintId    String?  @map("complaint_id") @db.Uuid
+  text           String   @db.VarChar(200)
+  duration       String?  @db.VarChar(60)
+  note           String?  @db.VarChar(300)
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  consultation Consultation      @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  complaint    ComplaintCatalog? @relation(fields: [complaintId], references: [id], onDelete: SetNull)
+
+  @@index([consultationId])
+  @@map("consultation_symptoms")
+}
+
+/// Vitals. Recorded before the consultation they carry only appointment_id (e.g. by an assistant);
+/// the consultation adopts them when it starts.
+model ConsultationVital {
+  id             String   @id @default(uuid()) @db.Uuid
+  consultationId String?  @map("consultation_id") @db.Uuid
+  appointmentId  String?  @map("appointment_id") @db.Uuid
+  definitionId   String   @map("definition_id") @db.Uuid
+  valueText      String   @map("value_text") @db.VarChar(40)
+  valueNumber    Decimal? @map("value_number") @db.Decimal(10, 2)
+  valueNumber2   Decimal? @map("value_number2") @db.Decimal(10, 2)
+  recordedById   String?  @map("recorded_by") @db.Uuid
+  recordedByName String?  @map("recorded_by_name") @db.VarChar(150)
+  recordedAt     DateTime @default(now()) @map("recorded_at") @db.Timestamptz(3)
+
+  consultation Consultation?   @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  appointment  Appointment?    @relation(fields: [appointmentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "consultation_vitals_appointment_fk")
+  definition   VitalDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+
+  @@unique([consultationId, definitionId])
+  @@unique([appointmentId, definitionId])
+  @@map("consultation_vitals")
+}
+
+model ConsultationDiagnosis {
+  id             String             @id @default(uuid()) @db.Uuid
+  consultationId String             @map("consultation_id") @db.Uuid
+  diagnosisId    String?            @map("diagnosis_id") @db.Uuid
+  name           String             @db.VarChar(200)
+  code           String?            @db.VarChar(20)
+  isPrimary      Boolean            @default(false) @map("is_primary")
+  certainty      DiagnosisCertainty @default(CONFIRMED)
+  note           String?            @db.VarChar(300)
+  sortOrder      Int                @default(0) @map("sort_order")
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  consultation Consultation      @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  diagnosis    DiagnosisCatalog? @relation(fields: [diagnosisId], references: [id], onDelete: SetNull)
+
+  @@index([consultationId])
+  @@index([diagnosisId])
+  @@map("consultation_diagnoses")
+}
+
+model ConsultationInvestigation {
+  id              String                @id @default(uuid()) @db.Uuid
+  consultationId  String                @map("consultation_id") @db.Uuid
+  investigationId String?               @map("investigation_id") @db.Uuid
+  name            String                @db.VarChar(200)
+  instructions    String?               @db.VarChar(300)
+  priority        InvestigationPriority @default(ROUTINE)
+  sortOrder       Int                   @default(0) @map("sort_order")
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  consultation  Consultation          @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  investigation InvestigationCatalog? @relation(fields: [investigationId], references: [id], onDelete: SetNull)
+
+  @@index([consultationId])
+  @@index([investigationId])
+  @@map("consultation_investigations")
+}
+
+/// CLINICAL: the doctor's private note (one per consultation, editable while DRAFT).
+/// ADDENDUM: append-only notes added after finalization.
+model ConsultationNote {
+  id             String               @id @default(uuid()) @db.Uuid
+  consultationId String               @map("consultation_id") @db.Uuid
+  type           ConsultationNoteType
+  text           String               @db.VarChar(4000)
+  createdById    String?              @map("created_by") @db.Uuid
+  createdByName  String?              @map("created_by_name") @db.VarChar(150)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([consultationId, type])
+  @@map("consultation_notes")
 }

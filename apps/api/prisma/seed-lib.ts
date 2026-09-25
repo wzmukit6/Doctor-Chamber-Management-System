@@ -404,3 +404,78 @@ export async function seedDemoAppointments(prisma: PrismaClient) {
   await seedSchedules(prisma);
   await seedAppointments(prisma);
 }
+
+/**
+ * Phase 4 demo data: finalized consultations for completed demo visits and a
+ * draft for the patient currently with the doctor. Idempotent per appointment.
+ */
+export async function seedDemoConsultations(prisma: PrismaClient) {
+  const doctor = await prisma.doctor.findFirst({ where: { user: { email: DEMO_USERS.doctor } }, include: { user: true } });
+  if (!doctor) return;
+  const appts = await prisma.appointment.findMany({
+    where: { doctorId: doctor.id, isDemo: true, status: { in: ['COMPLETED', 'IN_CONSULTATION'] }, consultation: null },
+    include: { patient: true },
+    orderBy: { startsAt: 'asc' },
+  });
+  const dx = await prisma.diagnosisCatalog.findMany({ where: { chamberId: null } });
+  const inv = await prisma.investigationCatalog.findMany({ where: { chamberId: null } });
+  const cc = await prisma.complaintCatalog.findMany({ where: { chamberId: null } });
+  const vitals = await prisma.vitalDefinition.findMany({ where: { chamberId: null } });
+  const find = <T extends { name: string }>(list: T[], name: string) => list.find((x) => x.name === name);
+  const vital = (key: string) => vitals.find((v) => v.key === key)!;
+
+  const plans: Record<string, { complaints: [string, string][]; diagnoses: string[]; investigations: string[]; exam: string; bp: string; pulse: number; temp: number; weight: number; followUpDays?: number; advice?: string }> = {
+    'Diabetes follow-up': { complaints: [['Weakness', '2 weeks']], diagnoses: ['Type 2 diabetes mellitus', 'Essential (primary) hypertension'], investigations: ['HbA1c', 'Serum creatinine', 'Lipid profile'], exam: 'No pedal oedema. Peripheral pulses palpable.', bp: '138/86', pulse: 78, temp: 98.4, weight: 76.5, followUpDays: 30 },
+    'Thyroid review': { complaints: [['Weakness', '1 month'], ['Weight loss', '1 month']], diagnoses: ['Hypothyroidism, unspecified'], investigations: ['Serum TSH'], exam: 'No goitre.', bp: '118/76', pulse: 70, temp: 98.2, weight: 61.0, followUpDays: 60 },
+    'General check-up': { complaints: [['Body ache', '3 days']], diagnoses: ['Viral infection, unspecified'], investigations: ['Complete blood count'], exam: 'Throat mildly congested.', bp: '122/80', pulse: 84, temp: 99.1, weight: 70.2, followUpDays: 7 },
+    'Cardiac follow-up': { complaints: [['Chest pain', 'occasional, 2 weeks'], ['Shortness of breath', 'on exertion']], diagnoses: ['Chronic ischaemic heart disease', 'Chronic kidney disease, stage 3'], investigations: ['Electrocardiogram', 'Serum creatinine', 'Serum electrolytes'], exam: 'S1 S2 normal, no murmur. Mild bilateral basal crepitations.', bp: '132/84', pulse: 72, temp: 98.3, weight: 68.4, followUpDays: 14 },
+    'Headache, BP check': { complaints: [['Headache', '5 days'], ['Dizziness', '2 days']], diagnoses: [], investigations: [], exam: '', bp: '150/96', pulse: 88, temp: 98.6, weight: 81.0 },
+  };
+
+  for (const appt of appts) {
+    const plan = plans[appt.reason ?? ''] ?? plans['General check-up']!;
+    const finalized = appt.status === 'COMPLETED';
+    const previous = await prisma.consultation.count({ where: { patientId: appt.patientId } });
+    const followUp = finalized && plan.followUpDays ? new Date(appt.startsAt.getTime() + plan.followUpDays * 86_400_000) : null;
+    // Children are inserted while DRAFT; finalization happens last (finalized consultations are immutable).
+    const c = await prisma.consultation.create({
+      data: {
+        organizationId: appt.organizationId,
+        chamberId: appt.chamberId,
+        patientId: appt.patientId,
+        doctorId: doctor.id,
+        appointmentId: appt.id,
+        visitNumber: previous + 1,
+        presentIllness: plan.complaints.map(([c, d]) => `${c} for ${d}`).join('. ') + '.',
+        examinationNotes: plan.exam || null,
+        followUpDate: followUp ? new Date(`${followUp.toISOString().slice(0, 10)}T00:00:00Z`) : null,
+        followUpInstructions: followUp ? 'Come with the investigation reports.' : null,
+        startedAt: appt.startedAt ?? appt.startsAt,
+        isDemo: true,
+        createdById: doctor.userId,
+        symptoms: { create: plan.complaints.map(([text, duration], i) => ({ text, duration, complaintId: find(cc, text)?.id ?? null, sortOrder: i })) },
+        diagnoses: {
+          create: plan.diagnoses.map((name, i) => {
+            const d = find(dx, name);
+            return { name, code: d?.code ?? null, diagnosisId: d?.id ?? null, isPrimary: i === 0, sortOrder: i };
+          }),
+        },
+        investigations: { create: plan.investigations.map((name, i) => ({ name, investigationId: find(inv, name)?.id ?? null, sortOrder: i })) },
+        vitals: {
+          create: [
+            { definitionId: vital('bp').id, valueText: plan.bp, valueNumber: Number(plan.bp.split('/')[0]), valueNumber2: Number(plan.bp.split('/')[1]) },
+            { definitionId: vital('pulse').id, valueText: String(plan.pulse), valueNumber: plan.pulse },
+            { definitionId: vital('temperature').id, valueText: plan.temp.toFixed(1), valueNumber: plan.temp },
+            { definitionId: vital('weight').id, valueText: plan.weight.toFixed(1), valueNumber: plan.weight },
+          ].map((v) => ({ ...v, recordedByName: 'Demo Assistant (Dhanmondi)' })),
+        },
+      },
+    });
+    if (finalized) {
+      await prisma.consultation.update({
+        where: { id: c.id },
+        data: { status: 'FINALIZED', finalizedAt: appt.completedAt ?? appt.endsAt, finalizedById: doctor.userId, finalizedByName: doctor.user.fullName },
+      });
+    }
+  }
+}
