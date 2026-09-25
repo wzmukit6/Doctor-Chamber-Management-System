@@ -1,0 +1,33 @@
+{
+  "name": "chamber-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chamber Assistant \u2014 Modern Doctor Practice & Prescription Management System",
+  "workspaces": [
+    "packages/shared",
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "node scripts/dev.mjs",
+    "build:shared": "npm run build -w @chamber/shared",
+    "build": "npm run build:shared && npm run build -w @chamber/api && npm run build -w @chamber/web",
+    "dev:api": "npm run dev -w @chamber/api",
+    "dev:web": "npm run dev -w @chamber/web",
+    "db:migrate": "npm run db:migrate -w @chamber/api",
+    "db:seed": "npm run db:seed -w @chamber/api",
+    "db:reset": "npm run db:reset -w @chamber/api",
+    "test": "npm run build:shared && npm test -w @chamber/api && npm test -w @chamber/web",
+    "test:e2e": "npm run test:e2e -w @chamber/api",
+    "typecheck": "npm run build:shared && npm run typecheck -w @chamber/api && npm run typecheck -w @chamber/web",
+    "docs:permissions": "npm run build:shared && node scripts/generate-permission-doc.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "overrides": {
+    "uuid": "^11.1.1",
+    "deepmerge-ts": "^8.0.2"
+  }
+}
