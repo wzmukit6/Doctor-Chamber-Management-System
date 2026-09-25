@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { MedicineForm, PrismaClient } from '@prisma/client';
+import { DEFAULT_ROUTE_BY_FORM } from '@chamber/shared';
 
 /**
  * Global clinical reference data (spec §16, §17, §9). Loaded in every
@@ -98,6 +99,106 @@ export const GLOBAL_VITALS: { key: string; label: string; unit: string | null; t
   { key: 'rbs', label: 'Random blood sugar', unit: 'mmol/L', type: 'NUMBER', min: 1, max: 40, decimals: 1, sort: 80 },
 ];
 
+/**
+ * Global medicine master (spec §15): generic names only — brand names and
+ * manufacturers are added per chamber, so no company is misattributed.
+ * [generic, form, strength, category, defaultDose, frequencies, durations, keywords?]
+ */
+type Med = [string, MedicineForm, string | null, string, string | null, string[], string[], string?];
+const TAB_DAYS = ['3 days', '5 days', '7 days'];
+const LONG = ['1 month', '3 months', 'Continue'];
+export const GLOBAL_MEDICINES: Med[] = [
+  ['Paracetamol', 'TABLET', '500 mg', 'Analgesic / antipyretic', '1 tab', ['1+1+1', 'every 6 hours', 'SOS'], TAB_DAYS, 'fever pain acetaminophen napa'],
+  ['Paracetamol', 'TABLET', '650 mg', 'Analgesic / antipyretic', '1 tab', ['1+1+1', 'SOS'], TAB_DAYS, 'fever pain acetaminophen'],
+  ['Paracetamol', 'SUSPENSION', '120 mg/5 ml', 'Analgesic / antipyretic', '5 ml', ['1+1+1', 'every 6 hours'], TAB_DAYS, 'fever child syrup'],
+  ['Ibuprofen', 'TABLET', '400 mg', 'NSAID', '1 tab', ['1+1+1', '1+0+1'], TAB_DAYS, 'pain inflammation'],
+  ['Diclofenac sodium', 'TABLET', '50 mg', 'NSAID', '1 tab', ['1+0+1'], TAB_DAYS, 'pain'],
+  ['Naproxen', 'TABLET', '500 mg', 'NSAID', '1 tab', ['1+0+1'], TAB_DAYS, 'pain'],
+  ['Diclofenac', 'GEL', '1%', 'Topical NSAID', 'Apply locally', ['thrice daily'], TAB_DAYS, 'pain sprain'],
+  ['Omeprazole', 'CAPSULE', '20 mg', 'Proton pump inhibitor', '1 cap', ['1+0+1', '1+0+0'], ['14 days', '1 month'], 'acidity gastritis ppi'],
+  ['Esomeprazole', 'CAPSULE', '20 mg', 'Proton pump inhibitor', '1 cap', ['1+0+1', '1+0+0'], ['14 days', '1 month'], 'acidity gastritis ppi'],
+  ['Esomeprazole', 'TABLET', '40 mg', 'Proton pump inhibitor', '1 tab', ['1+0+0'], ['14 days', '1 month'], 'acidity gerd ppi'],
+  ['Pantoprazole', 'TABLET', '40 mg', 'Proton pump inhibitor', '1 tab', ['1+0+0', '1+0+1'], ['14 days', '1 month'], 'acidity ppi'],
+  ['Famotidine', 'TABLET', '20 mg', 'H2 blocker', '1 tab', ['1+0+1'], ['7 days', '14 days'], 'acidity'],
+  ['Antacid (aluminium + magnesium hydroxide)', 'SUSPENSION', null, 'Antacid', '10 ml', ['1+1+1'], ['7 days'], 'acidity heartburn'],
+  ['Domperidone', 'TABLET', '10 mg', 'Antiemetic / prokinetic', '1 tab', ['1+1+1'], TAB_DAYS, 'vomiting nausea bloating'],
+  ['Ondansetron', 'TABLET', '8 mg', 'Antiemetic', '1 tab', ['1+0+1', 'SOS'], ['3 days'], 'vomiting nausea'],
+  ['Oral rehydration salts', 'SACHET', null, 'Rehydration', '1 sachet in 500 ml water', ['after each loose stool'], ['3 days'], 'ors diarrhoea dehydration saline'],
+  ['Zinc sulfate', 'TABLET', '20 mg', 'Mineral supplement', '1 tab', ['1+0+0'], ['10 days'], 'diarrhoea zinc'],
+  ['Metronidazole', 'TABLET', '400 mg', 'Antiprotozoal / antibiotic', '1 tab', ['1+1+1'], ['5 days', '7 days'], 'amoebiasis diarrhoea'],
+  ['Amoxicillin', 'CAPSULE', '500 mg', 'Antibiotic (penicillin)', '1 cap', ['1+1+1'], ['5 days', '7 days'], 'antibiotic infection'],
+  ['Amoxicillin + clavulanic acid', 'TABLET', '625 mg', 'Antibiotic (penicillin)', '1 tab', ['1+0+1'], ['5 days', '7 days'], 'antibiotic co-amoxiclav'],
+  ['Azithromycin', 'TABLET', '500 mg', 'Antibiotic (macrolide)', '1 tab', ['1+0+0'], ['3 days', '5 days'], 'antibiotic'],
+  ['Cefixime', 'CAPSULE', '200 mg', 'Antibiotic (cephalosporin)', '1 cap', ['1+0+1'], ['7 days', '14 days'], 'antibiotic typhoid'],
+  ['Cefuroxime', 'TABLET', '500 mg', 'Antibiotic (cephalosporin)', '1 tab', ['1+0+1'], ['7 days'], 'antibiotic'],
+  ['Ciprofloxacin', 'TABLET', '500 mg', 'Antibiotic (quinolone)', '1 tab', ['1+0+1'], ['5 days', '7 days'], 'antibiotic uti'],
+  ['Nitrofurantoin', 'CAPSULE', '100 mg', 'Urinary antiseptic', '1 cap', ['1+0+1'], ['5 days', '7 days'], 'uti'],
+  ['Doxycycline', 'CAPSULE', '100 mg', 'Antibiotic (tetracycline)', '1 cap', ['1+0+1'], ['7 days'], 'antibiotic'],
+  ['Cetirizine', 'TABLET', '10 mg', 'Antihistamine', '1 tab', ['0+0+1'], ['5 days', '7 days', '14 days'], 'allergy itching sneezing'],
+  ['Fexofenadine', 'TABLET', '120 mg', 'Antihistamine', '1 tab', ['1+0+0', '0+0+1'], ['7 days', '14 days'], 'allergy rhinitis'],
+  ['Loratadine', 'TABLET', '10 mg', 'Antihistamine', '1 tab', ['0+0+1'], ['7 days'], 'allergy'],
+  ['Desloratadine', 'TABLET', '5 mg', 'Antihistamine', '1 tab', ['0+0+1'], ['7 days', '14 days'], 'allergy urticaria'],
+  ['Montelukast', 'TABLET', '10 mg', 'Leukotriene antagonist', '1 tab', ['0+0+1'], ['1 month', '3 months'], 'asthma allergy'],
+  ['Salbutamol', 'INHALER', '100 mcg/puff', 'Bronchodilator', '2 puffs', ['SOS', 'every 6 hours'], ['1 month'], 'asthma wheeze inhaler'],
+  ['Salbutamol', 'NEBULIZER_SOLUTION', '5 mg/ml', 'Bronchodilator', null, ['every 6 hours'], ['3 days'], 'asthma nebulisation'],
+  ['Budesonide + formoterol', 'INHALER', '160/4.5 mcg', 'Inhaled corticosteroid combination', '1 puff', ['1+0+1'], LONG, 'asthma copd'],
+  ['Dextromethorphan', 'SYRUP', '10 mg/5 ml', 'Cough suppressant', '10 ml', ['1+1+1'], ['5 days'], 'dry cough'],
+  ['Ambroxol', 'SYRUP', '15 mg/5 ml', 'Mucolytic', '10 ml', ['1+1+1'], ['5 days', '7 days'], 'cough expectorant'],
+  ['Fluticasone propionate', 'NASAL_SPRAY', '50 mcg/spray', 'Nasal corticosteroid', '2 sprays each nostril', ['1+0+0'], ['14 days', '1 month'], 'rhinitis nasal'],
+  ['Xylometazoline', 'NASAL_SPRAY', '0.1%', 'Nasal decongestant', '1 spray each nostril', ['1+0+1'], ['5 days'], 'blocked nose cold'],
+  ['Metformin', 'TABLET', '500 mg', 'Antidiabetic (biguanide)', '1 tab', ['1+0+1'], LONG, 'diabetes sugar'],
+  ['Metformin', 'TABLET', '850 mg', 'Antidiabetic (biguanide)', '1 tab', ['1+0+1'], LONG, 'diabetes sugar'],
+  ['Gliclazide', 'TABLET', '80 mg', 'Antidiabetic (sulfonylurea)', '1 tab', ['1+0+0', '1+0+1'], LONG, 'diabetes'],
+  ['Glimepiride', 'TABLET', '2 mg', 'Antidiabetic (sulfonylurea)', '1 tab', ['1+0+0'], LONG, 'diabetes'],
+  ['Sitagliptin', 'TABLET', '50 mg', 'Antidiabetic (DPP-4 inhibitor)', '1 tab', ['1+0+0'], LONG, 'diabetes gliptin'],
+  ['Empagliflozin', 'TABLET', '10 mg', 'Antidiabetic (SGLT2 inhibitor)', '1 tab', ['1+0+0'], LONG, 'diabetes gliflozin'],
+  ['Amlodipine', 'TABLET', '5 mg', 'Antihypertensive (calcium channel blocker)', '1 tab', ['1+0+0'], LONG, 'blood pressure htn'],
+  ['Losartan potassium', 'TABLET', '50 mg', 'Antihypertensive (ARB)', '1 tab', ['1+0+0'], LONG, 'blood pressure htn'],
+  ['Telmisartan', 'TABLET', '40 mg', 'Antihypertensive (ARB)', '1 tab', ['1+0+0'], LONG, 'blood pressure htn'],
+  ['Bisoprolol', 'TABLET', '2.5 mg', 'Beta blocker', '1 tab', ['1+0+0'], LONG, 'blood pressure heart'],
+  ['Bisoprolol', 'TABLET', '5 mg', 'Beta blocker', '1 tab', ['1+0+0'], LONG, 'blood pressure heart'],
+  ['Hydrochlorothiazide', 'TABLET', '25 mg', 'Diuretic', '1 tab', ['1+0+0'], LONG, 'blood pressure'],
+  ['Furosemide', 'TABLET', '40 mg', 'Loop diuretic', '1 tab', ['1+0+0'], ['7 days', '1 month'], 'oedema'],
+  ['Atorvastatin', 'TABLET', '10 mg', 'Statin', '1 tab', ['0+0+1'], LONG, 'cholesterol lipid'],
+  ['Atorvastatin', 'TABLET', '20 mg', 'Statin', '1 tab', ['0+0+1'], LONG, 'cholesterol lipid'],
+  ['Rosuvastatin', 'TABLET', '10 mg', 'Statin', '1 tab', ['0+0+1'], LONG, 'cholesterol lipid'],
+  ['Aspirin', 'TABLET', '75 mg', 'Antiplatelet', '1 tab', ['0+1+0'], LONG, 'heart ecosprin'],
+  ['Clopidogrel', 'TABLET', '75 mg', 'Antiplatelet', '1 tab', ['0+1+0'], LONG, 'heart'],
+  ['Isosorbide mononitrate', 'TABLET', '20 mg', 'Anti-anginal', '1 tab', ['1+0+1'], LONG, 'angina heart'],
+  ['Levothyroxine', 'TABLET', '50 mcg', 'Thyroid hormone', '1 tab', ['1+0+0'], LONG, 'thyroid hypothyroidism'],
+  ['Levothyroxine', 'TABLET', '100 mcg', 'Thyroid hormone', '1 tab', ['1+0+0'], LONG, 'thyroid hypothyroidism'],
+  ['Prednisolone', 'TABLET', '5 mg', 'Corticosteroid', '1 tab', ['1+0+0'], ['5 days', '7 days'], 'steroid'],
+  ['Calcium carbonate + vitamin D3', 'TABLET', '500 mg + 200 IU', 'Mineral supplement', '1 tab', ['1+0+1', '0+1+0'], ['1 month', '3 months'], 'calcium bone'],
+  ['Cholecalciferol (vitamin D3)', 'CAPSULE', '40,000 IU', 'Vitamin', '1 cap', ['once weekly'], ['8 weeks'], 'vitamin d deficiency'],
+  ['Ferrous fumarate + folic acid', 'CAPSULE', null, 'Haematinic', '1 cap', ['0+1+0'], ['1 month', '3 months'], 'iron anaemia'],
+  ['Folic acid', 'TABLET', '5 mg', 'Vitamin', '1 tab', ['1+0+0'], ['1 month'], 'pregnancy anaemia'],
+  ['Vitamin B complex', 'TABLET', null, 'Vitamin', '1 tab', ['1+0+1'], ['1 month'], 'vitamin weakness'],
+  ['Multivitamin + minerals', 'TABLET', null, 'Vitamin', '1 tab', ['0+1+0'], ['1 month'], 'vitamin weakness'],
+  ['Clotrimazole', 'CREAM', '1%', 'Topical antifungal', 'Apply thinly', ['1+0+1'], ['14 days', '1 month'], 'fungal ringworm'],
+  ['Terbinafine', 'TABLET', '250 mg', 'Antifungal', '1 tab', ['1+0+0'], ['14 days', '1 month'], 'fungal ringworm'],
+  ['Fluconazole', 'CAPSULE', '150 mg', 'Antifungal', '1 cap', ['once weekly'], ['2 weeks'], 'fungal candida'],
+  ['Permethrin', 'CREAM', '5%', 'Scabicide', 'Apply whole body', ['at night'], ['1 day'], 'scabies'],
+  ['Mupirocin', 'OINTMENT', '2%', 'Topical antibiotic', 'Apply locally', ['thrice daily'], ['7 days'], 'skin infection impetigo'],
+  ['Hydrocortisone', 'CREAM', '1%', 'Topical corticosteroid', 'Apply thinly', ['1+0+1'], ['7 days'], 'eczema dermatitis'],
+  ['Calamine', 'LOTION', null, 'Soothing lotion', 'Apply locally', ['thrice daily'], ['7 days'], 'itching rash'],
+  ['Chloramphenicol', 'EYE_DROPS', '0.5%', 'Ophthalmic antibiotic', '1 drop', ['every 6 hours'], ['5 days', '7 days'], 'conjunctivitis red eye'],
+  ['Moxifloxacin', 'EYE_DROPS', '0.5%', 'Ophthalmic antibiotic', '1 drop', ['thrice daily'], ['7 days'], 'conjunctivitis'],
+  ['Carboxymethylcellulose', 'EYE_DROPS', '0.5%', 'Lubricant eye drops', '1 drop', ['four times daily'], ['1 month'], 'dry eye tears'],
+  ['Ciprofloxacin', 'EAR_DROPS', '0.3%', 'Otic antibiotic', '2 drops', ['1+0+1'], ['7 days'], 'ear infection otitis'],
+  ['Chlorhexidine', 'MOUTHWASH', '0.2%', 'Antiseptic mouthwash', '10 ml gargle', ['1+0+1'], ['7 days'], 'gum mouth'],
+  ['Lactulose', 'SYRUP', '3.35 g/5 ml', 'Laxative', '15 ml', ['0+0+1'], ['7 days', '14 days'], 'constipation'],
+  ['Ispaghula husk', 'SACHET', '3.5 g', 'Bulk laxative', '1 sachet in water', ['0+0+1'], ['14 days', '1 month'], 'constipation fibre'],
+  ['Hyoscine butylbromide', 'TABLET', '10 mg', 'Antispasmodic', '1 tab', ['1+1+1', 'SOS'], ['3 days'], 'abdominal pain cramp'],
+  ['Mebeverine', 'TABLET', '135 mg', 'Antispasmodic', '1 tab', ['1+1+1'], ['14 days', '1 month'], 'ibs'],
+  ['Albendazole', 'TABLET', '400 mg', 'Anthelmintic', '1 tab', ['0+0+1'], ['1 day'], 'worm'],
+  ['Sumatriptan', 'TABLET', '50 mg', 'Antimigraine', '1 tab', ['SOS'], ['1 month'], 'migraine headache'],
+  ['Propranolol', 'TABLET', '10 mg', 'Beta blocker', '1 tab', ['1+0+1'], ['1 month', '3 months'], 'migraine prophylaxis anxiety tremor'],
+  ['Flunarizine', 'CAPSULE', '5 mg', 'Antimigraine / antivertigo', '1 cap', ['0+0+1'], ['1 month'], 'migraine vertigo'],
+  ['Betahistine', 'TABLET', '16 mg', 'Antivertigo', '1 tab', ['1+0+1'], ['14 days', '1 month'], 'vertigo dizziness'],
+  ['Pregabalin', 'CAPSULE', '75 mg', 'Neuropathic pain', '1 cap', ['0+0+1', '1+0+1'], ['1 month'], 'neuropathy nerve pain'],
+  ['Tamsulosin', 'CAPSULE', '0.4 mg', 'Alpha blocker', '1 cap', ['0+0+1'], LONG, 'bph prostate'],
+];
+
 export async function syncReferenceData(prisma: PrismaClient) {
   const existingDx = new Set((await prisma.diagnosisCatalog.findMany({ where: { chamberId: null }, select: { name: true } })).map((d) => d.name.toLowerCase()));
   await prisma.diagnosisCatalog.createMany({
@@ -126,6 +227,22 @@ export async function syncReferenceData(prisma: PrismaClient) {
       maxValue: v.max ?? null,
       decimals: v.decimals ?? 0,
       sortOrder: v.sort,
+    })),
+  });
+  const existingMed = new Set(
+    (await prisma.medicine.findMany({ where: { chamberId: null }, select: { genericName: true, form: true, strength: true } })).map((m) => `${m.genericName}|${m.form}|${m.strength ?? ''}`.toLowerCase()),
+  );
+  await prisma.medicine.createMany({
+    data: GLOBAL_MEDICINES.filter(([g, form, strength]) => !existingMed.has(`${g}|${form}|${strength ?? ''}`.toLowerCase())).map(([genericName, form, strength, category, defaultDose, commonFrequencies, commonDurations, keywords]) => ({
+      genericName,
+      form,
+      strength,
+      category,
+      route: DEFAULT_ROUTE_BY_FORM[form] ?? null,
+      defaultDose,
+      commonFrequencies,
+      commonDurations,
+      keywords: keywords ?? null,
     })),
   });
 }

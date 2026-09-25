@@ -1,10 +1,12 @@
-import { PrismaClient } from '@prisma/client';
+import { MealInstruction, MedicineForm, PrismaClient } from '@prisma/client';
+import { contentHash, itemRows, nextRxNumber, verificationToken } from '../src/modules/prescriptions/prescription-writer';
 import { hash } from '@node-rs/argon2';
 import {
   DEFAULT_ROLE_PERMISSIONS,
   PERMISSION_GROUPS,
   RoleKey,
   ROLES,
+  computeQuantity,
 } from '@chamber/shared';
 
 const ROLE_META: Record<RoleKey, { name: string; description: string }> = {
@@ -476,6 +478,147 @@ export async function seedDemoConsultations(prisma: PrismaClient) {
         where: { id: c.id },
         data: { status: 'FINALIZED', finalizedAt: appt.completedAt ?? appt.endsAt, finalizedById: doctor.userId, finalizedByName: doctor.user.fullName },
       });
+    }
+  }
+}
+
+type DemoRxItem = { generic: string; strength: string | null; form: MedicineForm; frequency: string; days?: number; unit?: 'DAYS' | 'WEEKS' | 'MONTHS' | 'CONTINUE'; meal?: MealInstruction; instructions?: string; dose?: string };
+
+/**
+ * Phase 5 demo data: an issued prescription for every finalized demo
+ * consultation (one of them revised once) and a draft for the patient
+ * currently in consultation. Idempotent per consultation.
+ */
+export async function seedDemoPrescriptions(prisma: PrismaClient) {
+  const doctor = await prisma.doctor.findFirst({ where: { user: { email: DEMO_USERS.doctor } }, include: { user: true } });
+  if (!doctor) return;
+  const consultations = await prisma.consultation.findMany({
+    where: { doctorId: doctor.id, isDemo: true, status: { in: ['FINALIZED', 'DRAFT'] }, prescription: null },
+    include: { appointment: { select: { reason: true } } },
+    orderBy: { startedAt: 'asc' },
+  });
+  const medicines = await prisma.medicine.findMany({ where: { chamberId: null } });
+
+  const plans: Record<string, { items: DemoRxItem[]; advice: string }> = {
+    'Diabetes follow-up': {
+      items: [
+        { generic: 'Metformin', strength: '500 mg', form: 'TABLET', frequency: '1+0+1', days: 1, unit: 'MONTHS', meal: 'AFTER_MEAL' },
+        { generic: 'Gliclazide', strength: '80 mg', form: 'TABLET', frequency: '1+0+0', days: 1, unit: 'MONTHS', meal: 'BEFORE_MEAL', instructions: '30 minutes before breakfast' },
+        { generic: 'Amlodipine', strength: '5 mg', form: 'TABLET', frequency: '1+0+0', unit: 'CONTINUE' },
+      ],
+      advice: 'Diabetic diet; avoid sugar and sweets.\nWalk 30 minutes daily.\nCheck fasting blood sugar weekly and keep a record.',
+    },
+    'Thyroid review': {
+      items: [
+        { generic: 'Levothyroxine', strength: '50 mcg', form: 'TABLET', frequency: '1+0+0', unit: 'CONTINUE', meal: 'EMPTY_STOMACH', instructions: '30 minutes before breakfast' },
+        { generic: 'Calcium carbonate + vitamin D3', strength: '500 mg + 200 IU', form: 'TABLET', frequency: '0+1+0', days: 1, unit: 'MONTHS', meal: 'AFTER_MEAL' },
+      ],
+      advice: 'Take thyroid tablet at the same time every day.\nRepeat TSH after 6 weeks.',
+    },
+    'General check-up': {
+      items: [
+        { generic: 'Paracetamol', strength: '500 mg', form: 'TABLET', frequency: '1+1+1', days: 5, unit: 'DAYS', meal: 'AFTER_MEAL', instructions: 'If temperature is above 100°F' },
+        { generic: 'Cetirizine', strength: '10 mg', form: 'TABLET', frequency: '0+0+1', days: 5, unit: 'DAYS' },
+      ],
+      advice: 'Plenty of fluids and rest.\nReturn earlier if fever persists beyond 3 days.',
+    },
+    'Cardiac follow-up': {
+      items: [
+        { generic: 'Aspirin', strength: '75 mg', form: 'TABLET', frequency: '0+1+0', unit: 'CONTINUE', meal: 'AFTER_MEAL' },
+        { generic: 'Atorvastatin', strength: '20 mg', form: 'TABLET', frequency: '0+0+1', days: 1, unit: 'MONTHS' },
+        { generic: 'Bisoprolol', strength: '2.5 mg', form: 'TABLET', frequency: '1+0+0', days: 1, unit: 'MONTHS' },
+        { generic: 'Isosorbide mononitrate', strength: '20 mg', form: 'TABLET', frequency: '1+0+1', days: 1, unit: 'MONTHS', meal: 'AFTER_MEAL' },
+      ],
+      advice: 'Low-salt, low-fat diet.\nNo heavy exertion; stop and rest if chest pain occurs.',
+    },
+    'Headache, BP check': {
+      items: [{ generic: 'Paracetamol', strength: '500 mg', form: 'TABLET', frequency: 'SOS', meal: 'AFTER_MEAL', instructions: 'For headache, maximum 3 tablets a day' }],
+      advice: 'Reduce salt intake. Sleep 7–8 hours.',
+    },
+  };
+
+  const toItem = (it: DemoRxItem) => {
+    const med = medicines.find((m) => m.genericName === it.generic && m.strength === it.strength && m.form === it.form);
+    const base = {
+      medicineId: med?.id ?? null,
+      name: it.generic,
+      genericName: it.generic,
+      strength: it.strength,
+      form: it.form,
+      dose: it.dose ?? med?.defaultDose ?? null,
+      frequency: it.frequency,
+      route: med?.route ?? null,
+      durationValue: it.unit === 'CONTINUE' ? null : (it.days ?? null),
+      durationUnit: it.unit ?? null,
+      mealInstruction: it.meal ?? null,
+      instructions: it.instructions ?? null,
+    };
+    return { ...base, quantity: computeQuantity(base) };
+  };
+
+  let revised = false;
+  for (const c of consultations) {
+    const plan = plans[c.appointment?.reason ?? ''] ?? plans['General check-up']!;
+    const items = itemRows(plan.items.map(toItem));
+    const rx = await prisma.prescription.create({
+      data: {
+        organizationId: c.organizationId,
+        chamberId: c.chamberId,
+        patientId: c.patientId,
+        doctorId: doctor.id,
+        consultationId: c.id,
+        isDemo: true,
+        createdById: doctor.userId,
+        createdAt: c.startedAt,
+        versions: {
+          create: { versionNumber: 1, advice: plan.advice, createdById: doctor.userId, createdByName: doctor.user.fullName, createdAt: c.startedAt, items: { create: items } },
+        },
+      },
+      include: { versions: true },
+    });
+    if (c.status !== 'FINALIZED') continue;
+    const at = c.finalizedAt ?? new Date();
+    const rxNumber = await nextRxNumber(prisma, c.chamberId);
+    const v1 = rx.versions[0]!;
+    await prisma.prescriptionVersion.update({
+      where: { id: v1.id },
+      data: {
+        status: 'FINALIZED',
+        finalizedAt: at,
+        finalizedById: doctor.userId,
+        finalizedByName: doctor.user.fullName,
+        verificationToken: verificationToken(),
+        contentHash: contentHash({ rxNumber, versionNumber: 1, patientId: c.patientId, doctorId: doctor.id, advice: plan.advice, items }),
+      },
+    });
+    await prisma.prescription.update({ where: { id: rx.id }, data: { rxNumber, status: 'FINALIZED', issuedAt: at } });
+
+    // One demo revision: gliclazide replaced after the patient reported low sugar.
+    if (!revised && c.appointment?.reason === 'Diabetes follow-up') {
+      revised = true;
+      const revisedAt = new Date(at.getTime() + 2 * 3600_000);
+      const reason = 'Patient reported hypoglycaemia symptoms; gliclazide replaced with sitagliptin.';
+      const revItems = itemRows(
+        plan.items
+          .map((it) => (it.generic === 'Gliclazide' ? { generic: 'Sitagliptin', strength: '50 mg', form: 'TABLET' as const, frequency: '1+0+0', days: 1, unit: 'MONTHS' as const, meal: 'AFTER_MEAL' as const } : it))
+          .map(toItem),
+      );
+      const v2 = await prisma.prescriptionVersion.create({
+        data: { prescriptionId: rx.id, versionNumber: 2, advice: plan.advice, revisionReason: reason, createdById: doctor.userId, createdByName: doctor.user.fullName, createdAt: revisedAt, items: { create: revItems } },
+      });
+      await prisma.prescriptionVersion.update({ where: { id: v1.id }, data: { status: 'SUPERSEDED', supersededAt: revisedAt } });
+      await prisma.prescriptionVersion.update({
+        where: { id: v2.id },
+        data: {
+          status: 'FINALIZED',
+          finalizedAt: revisedAt,
+          finalizedById: doctor.userId,
+          finalizedByName: doctor.user.fullName,
+          verificationToken: verificationToken(),
+          contentHash: contentHash({ rxNumber, versionNumber: 2, patientId: c.patientId, doctorId: doctor.id, advice: plan.advice, items: revItems }),
+        },
+      });
+      await prisma.prescription.update({ where: { id: rx.id }, data: { status: 'REVISED', currentVersion: 2 } });
     }
   }
 }

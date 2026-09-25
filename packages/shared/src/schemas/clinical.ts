@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { optionalText, requiredText, uuidSchema } from '../validation';
+import { prescriptionContentSchema } from './prescriptions';
 
 export const CONSULTATION_STATUSES = ['DRAFT', 'FINALIZED', 'CANCELLED'] as const;
 export type ConsultationStatus = (typeof CONSULTATION_STATUSES)[number];
@@ -67,6 +68,8 @@ export const saveConsultationSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'validation.date')
       .nullish(),
     followUpInstructions: optionalText(500),
+    /** The consultation's prescription draft (version 1); omitted = unchanged. */
+    prescription: prescriptionContentSchema.optional(),
     version: z.number().int().min(1),
   })
   .superRefine((v, ctx) => {

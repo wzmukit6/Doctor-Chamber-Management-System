@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { ConsultationDto, ConsultationSummaryDto } from '@chamber/shared';
 import { ageFrom, formatDateOnly } from '../patients/patient.utils';
+import { toItemDto, versionInclude } from '../prescriptions/prescriptions.mapper';
 
 export const consultationInclude = {
   patient: { select: { id: true, patientCode: true, fullName: true, gender: true, dateOfBirth: true, dobEstimated: true, bloodGroup: true, phone: true } },
@@ -10,12 +11,16 @@ export const consultationInclude = {
   diagnoses: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }] },
   investigations: { orderBy: { sortOrder: 'asc' } },
   notes: { orderBy: { createdAt: 'asc' } },
+  prescription: { include: { versions: { where: { status: { in: ['DRAFT', 'FINALIZED'] } }, include: versionInclude } } },
 } satisfies Prisma.ConsultationInclude;
 
 export type ConsultationRow = Prisma.ConsultationGetPayload<{ include: typeof consultationInclude }>;
 
-export function toConsultationDto(c: ConsultationRow, opts: { canSeeNotes: boolean; canEdit: boolean }): ConsultationDto {
+export function toConsultationDto(c: ConsultationRow, opts: { canSeeNotes: boolean; canEdit: boolean; canSeePrescription: boolean }): ConsultationDto {
   const clinical = c.notes.find((n) => n.type === 'CLINICAL');
+  const rx = c.prescription;
+  // While the consultation is open the draft is shown; afterwards the current issued version.
+  const rxVersion = rx?.versions.find((v) => v.status === (rx.status === 'DRAFT' ? 'DRAFT' : 'FINALIZED'));
   return {
     id: c.id,
     chamberId: c.chamberId,
@@ -73,6 +78,10 @@ export function toConsultationDto(c: ConsultationRow, opts: { canSeeNotes: boole
     updatedAt: c.updatedAt.toISOString(),
     version: c.version,
     canEdit: opts.canEdit,
+    prescription:
+      opts.canSeePrescription && rx && rxVersion
+        ? { id: rx.id, rxNumber: rx.rxNumber, status: rx.status, versionNumber: rxVersion.versionNumber, items: rxVersion.items.map(toItemDto), advice: rxVersion.advice }
+        : null,
   };
 }
 

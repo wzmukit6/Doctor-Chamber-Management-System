@@ -1,3 +1,4 @@
+import type { PrescriptionSettings } from './schemas/prescriptions';
 import type { Permission } from './permissions';
 import type { RoleKey } from './roles';
 
@@ -339,6 +340,17 @@ export interface ConsultationDto {
   version: number;
   /** Can the current user edit / finalize this consultation? */
   canEdit: boolean;
+  /** The visit's prescription: draft content while editing, the current version once finalized. */
+  prescription: ConsultationPrescriptionDto | null;
+}
+
+export interface ConsultationPrescriptionDto {
+  id: string;
+  rxNumber: string | null;
+  status: 'DRAFT' | 'FINALIZED' | 'REVISED' | 'CANCELLED';
+  versionNumber: number;
+  items: PrescriptionItemDto[];
+  advice: string | null;
 }
 
 export interface ConsultationSummaryDto {
@@ -363,4 +375,146 @@ export interface ConsultationContextDto {
   currentMedications: string | null;
   previousVisits: ConsultationSummaryDto[];
   medicalHidden: boolean;
+}
+
+// ───────────── Prescriptions (Phase 5) ─────────────
+
+export interface MedicineDto {
+  id: string;
+  genericName: string;
+  brandName: string | null;
+  manufacturer: string | null;
+  form: string;
+  strength: string | null;
+  category: string | null;
+  route: string | null;
+  defaultDose: string | null;
+  commonFrequencies: string[];
+  commonDurations: string[];
+  keywords: string | null;
+  isActive: boolean;
+  isGlobal: boolean;
+  isFavorite: boolean;
+  usageCount?: number;
+}
+
+export interface MedicineSuggestionsDto {
+  favorites: MedicineDto[];
+  frequent: MedicineDto[];
+  recent: MedicineDto[];
+}
+
+export interface PrescriptionItemDto {
+  id?: string;
+  medicineId: string | null;
+  name: string;
+  genericName: string | null;
+  strength: string | null;
+  form: string | null;
+  dose: string | null;
+  frequency: string | null;
+  route: string | null;
+  durationValue: number | null;
+  durationUnit: string | null;
+  quantity: number | null;
+  mealInstruction: string | null;
+  timing: string | null;
+  instructions: string | null;
+}
+
+export interface PrescriptionVersionDto {
+  id: string;
+  versionNumber: number;
+  status: 'DRAFT' | 'FINALIZED' | 'SUPERSEDED' | 'DISCARDED';
+  advice: string | null;
+  revisionReason: string | null;
+  items: PrescriptionItemDto[];
+  createdByName: string | null;
+  createdAt: string;
+  updatedByName: string | null;
+  updatedAt: string;
+  finalizedByName: string | null;
+  finalizedAt: string | null;
+  supersededAt: string | null;
+  discardedAt: string | null;
+  /** Only for finalized/superseded versions and viewers who may print. */
+  verificationToken: string | null;
+  contentHash: string | null;
+}
+
+export interface PrescriptionSummaryDto {
+  id: string;
+  rxNumber: string | null;
+  status: 'DRAFT' | 'FINALIZED' | 'REVISED' | 'CANCELLED';
+  currentVersion: number;
+  hasDraftRevision: boolean;
+  patient: { id: string; patientCode: string; fullName: string; age: number | null; gender: string };
+  doctor: { id: string; fullName: string };
+  consultationId: string;
+  itemCount: number;
+  primaryDiagnosis: string | null;
+  issuedAt: string | null;
+  createdAt: string;
+}
+
+export interface PrescriptionDto extends PrescriptionSummaryDto {
+  versions: PrescriptionVersionDto[];
+  version: number;
+  /** Current user is the prescribing doctor and holds `prescriptions.revise`. */
+  canRevise: boolean;
+}
+
+export interface PrescriptionTemplateDto {
+  id: string;
+  name: string;
+  description: string | null;
+  shared: boolean;
+  ownerName: string | null;
+  isOwn: boolean;
+  canEdit: boolean;
+  diagnoses: { diagnosisId?: string | null; name: string; code?: string | null; isPrimary?: boolean; certainty?: string; note?: string | null }[];
+  investigations: { investigationId?: string | null; name: string; instructions?: string | null; priority?: string }[];
+  items: PrescriptionItemDto[];
+  advice: string | null;
+  followUpInstructions: string | null;
+  updatedAt: string;
+  version: number;
+}
+
+/** Everything needed to render the printable prescription (spec §13). */
+export interface PrescriptionPrintDto {
+  prescriptionId: string;
+  rxNumber: string | null;
+  status: PrescriptionDto['status'];
+  version: PrescriptionVersionDto;
+  latestVersionNumber: number;
+  chamber: { name: string; address: string | null; phone: string | null; email: string | null; timezone: string };
+  doctor: { fullName: string; qualifications: string | null; specialty: string | null; registrationNo: string | null };
+  patient: { patientCode: string; fullName: string; age: number | null; gender: string; phone: string | null };
+  visit: {
+    visitNumber: number;
+    date: string;
+    complaints: { text: string; duration: string | null }[];
+    vitals: { label: string; value: string; unit: string | null }[];
+    examinationNotes: string | null;
+    diagnoses: { name: string; code: string | null; isPrimary: boolean; certainty: string }[];
+    investigations: { name: string; instructions: string | null; priority: string }[];
+    followUpDate: string | null;
+    followUpInstructions: string | null;
+  };
+  settings: PrescriptionSettings;
+}
+
+/** Public verification result — deliberately contains no patient information (spec §14). */
+export interface PrescriptionVerificationDto {
+  valid: boolean;
+  status: 'VALID' | 'SUPERSEDED' | 'CANCELLED';
+  rxNumber: string | null;
+  versionNumber: number;
+  latestVersionNumber: number;
+  issuedAt: string | null;
+  supersededAt: string | null;
+  doctor: { fullName: string; qualifications: string | null; registrationNo: string | null };
+  chamber: { name: string };
+  contentHash: string | null;
 }

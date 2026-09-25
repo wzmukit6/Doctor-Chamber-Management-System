@@ -54,16 +54,19 @@ model Chamber {
   deletedById    String?   @map("deleted_by") @db.Uuid
   deletionReason String?   @map("deletion_reason") @db.VarChar(500)
 
-  organization         Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  memberships          UserRole[]
-  doctors              Doctor[]
-  patients             Patient[]
-  appointments         Appointment[]
-  consultations        Consultation[]
-  vitalDefinitions     VitalDefinition[]
-  complaintCatalog     ComplaintCatalog[]
-  investigationCatalog InvestigationCatalog[]
-  diagnosisCatalog     DiagnosisCatalog[]
+  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships           UserRole[]
+  doctors               Doctor[]
+  patients              Patient[]
+  appointments          Appointment[]
+  consultations         Consultation[]
+  vitalDefinitions      VitalDefinition[]
+  complaintCatalog      ComplaintCatalog[]
+  investigationCatalog  InvestigationCatalog[]
+  diagnosisCatalog      DiagnosisCatalog[]
+  medicines             Medicine[]
+  prescriptions         Prescription[]
+  prescriptionTemplates PrescriptionTemplate[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -188,11 +191,14 @@ model Doctor {
   slotMinutes      Int? @map("slot_minutes")
   maxDailyPatients Int? @map("max_daily_patients")
 
-  user          User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
-  chamber       Chamber                @relation(fields: [chamberId], references: [id], onDelete: Restrict)
-  schedule      DoctorScheduleWindow[]
-  appointments  Appointment[]
-  consultations Consultation[]
+  user              User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  chamber           Chamber                  @relation(fields: [chamberId], references: [id], onDelete: Restrict)
+  schedule          DoctorScheduleWindow[]
+  appointments      Appointment[]
+  consultations     Consultation[]
+  prescriptions     Prescription[]
+  favoriteMedicines DoctorMedicineFavorite[]
+  templates         PrescriptionTemplate[]
 
   @@unique([userId, chamberId])
   @@index([chamberId])
@@ -345,6 +351,7 @@ model Patient {
   recentViews    PatientRecentView[]
   appointments   Appointment[]
   consultations  Consultation[]
+  prescriptions  Prescription[]
 
   @@unique([chamberId, patientCode])
   @@index([chamberId, createdAt])
@@ -718,6 +725,7 @@ model Consultation {
   diagnoses      ConsultationDiagnosis[]
   investigations ConsultationInvestigation[]
   notes          ConsultationNote[]
+  prescription   Prescription?
 
   @@index([chamberId, startedAt])
   @@index([patientId, startedAt])
@@ -819,4 +827,262 @@ model ConsultationNote {
 
   @@index([consultationId, type])
   @@map("consultation_notes")
+}
+
+// ───────────────────────── Prescriptions (Phase 5) ─────────────────────────
+
+enum MedicineForm {
+  TABLET
+  CAPSULE
+  SYRUP
+  SUSPENSION
+  DROPS
+  INJECTION
+  INHALER
+  NEBULIZER_SOLUTION
+  CREAM
+  OINTMENT
+  GEL
+  LOTION
+  EYE_DROPS
+  EAR_DROPS
+  NASAL_SPRAY
+  SACHET
+  SUPPOSITORY
+  MOUTHWASH
+  OTHER
+}
+
+enum MedicineRoute {
+  ORAL
+  TOPICAL
+  INHALATION
+  IV
+  IM
+  SC
+  SUBLINGUAL
+  NASAL
+  OPHTHALMIC
+  OTIC
+  RECTAL
+  VAGINAL
+  OTHER
+}
+
+enum MealInstruction {
+  BEFORE_MEAL
+  AFTER_MEAL
+  WITH_MEAL
+  EMPTY_STOMACH
+  BEDTIME
+}
+
+enum DurationUnit {
+  DAYS
+  WEEKS
+  MONTHS
+  CONTINUE
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  FINALIZED
+  REVISED
+  CANCELLED
+}
+
+enum PrescriptionVersionStatus {
+  DRAFT
+  FINALIZED
+  SUPERSEDED
+  DISCARDED
+}
+
+/// Medicine master (spec §15). chamber_id NULL = global entry.
+model Medicine {
+  id                String         @id @default(uuid()) @db.Uuid
+  chamberId         String?        @map("chamber_id") @db.Uuid
+  genericName       String         @map("generic_name") @db.VarChar(200)
+  brandName         String?        @map("brand_name") @db.VarChar(200)
+  manufacturer      String?        @db.VarChar(150)
+  form              MedicineForm
+  strength          String?        @db.VarChar(80)
+  category          String?        @db.VarChar(100)
+  route             MedicineRoute?
+  defaultDose       String?        @map("default_dose") @db.VarChar(60)
+  commonFrequencies String[]       @default([]) @map("common_frequencies") @db.VarChar(60)
+  commonDurations   String[]       @default([]) @map("common_durations") @db.VarChar(60)
+  keywords          String?        @db.VarChar(300)
+  isActive          Boolean        @default(true) @map("is_active")
+  createdById       String?        @map("created_by") @db.Uuid
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  chamber   Chamber?                 @relation(fields: [chamberId], references: [id], onDelete: Restrict)
+  favorites DoctorMedicineFavorite[]
+  usages    PrescriptionItem[]
+
+  @@index([chamberId])
+  @@map("medicines")
+}
+
+model DoctorMedicineFavorite {
+  doctorId   String   @map("doctor_id") @db.Uuid
+  medicineId String   @map("medicine_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  doctor   Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  medicine Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+
+  @@id([doctorId, medicineId])
+  @@map("doctor_medicine_favorites")
+}
+
+/// One prescription per consultation; content lives in immutable versions (spec §12).
+model Prescription {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  chamberId      String             @map("chamber_id") @db.Uuid
+  patientId      String             @map("patient_id") @db.Uuid
+  doctorId       String             @map("doctor_id") @db.Uuid
+  consultationId String             @unique @map("consultation_id") @db.Uuid
+  /// Assigned on first finalization, e.g. RX-000145 (unique per chamber).
+  rxNumber       String?            @map("rx_number") @db.VarChar(20)
+  status         PrescriptionStatus @default(DRAFT)
+  currentVersion Int                @default(1) @map("current_version")
+  issuedAt       DateTime?          @map("issued_at") @db.Timestamptz(3)
+  isDemo         Boolean            @default(false) @map("is_demo")
+  version        Int                @default(1)
+  createdById    String?            @map("created_by") @db.Uuid
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  chamber      Chamber               @relation(fields: [chamberId], references: [id], onDelete: Restrict)
+  patient      Patient               @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  doctor       Doctor                @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  consultation Consultation          @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  versions     PrescriptionVersion[]
+
+  @@unique([chamberId, rxNumber])
+  @@index([chamberId, issuedAt])
+  @@index([patientId, createdAt])
+  @@index([doctorId, createdAt])
+  @@map("prescriptions")
+}
+
+model PrescriptionSequence {
+  chamberId String @id @map("chamber_id") @db.Uuid
+  lastValue Int    @default(0) @map("last_value")
+
+  @@map("prescription_sequences")
+}
+
+model PrescriptionVersion {
+  id                String                    @id @default(uuid()) @db.Uuid
+  prescriptionId    String                    @map("prescription_id") @db.Uuid
+  versionNumber     Int                       @map("version_number")
+  status            PrescriptionVersionStatus @default(DRAFT)
+  advice            String?                   @db.VarChar(2000)
+  revisionReason    String?                   @map("revision_reason") @db.VarChar(500)
+  createdById       String?                   @map("created_by") @db.Uuid
+  createdByName     String?                   @map("created_by_name") @db.VarChar(150)
+  createdAt         DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedById       String?                   @map("updated_by") @db.Uuid
+  updatedByName     String?                   @map("updated_by_name") @db.VarChar(150)
+  updatedAt         DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  finalizedAt       DateTime?                 @map("finalized_at") @db.Timestamptz(3)
+  finalizedById     String?                   @map("finalized_by") @db.Uuid
+  finalizedByName   String?                   @map("finalized_by_name") @db.VarChar(150)
+  supersededAt      DateTime?                 @map("superseded_at") @db.Timestamptz(3)
+  discardedAt       DateTime?                 @map("discarded_at") @db.Timestamptz(3)
+  /// Random token for the public verification URL / QR code (spec §14).
+  verificationToken String?                   @unique @map("verification_token") @db.VarChar(64)
+  /// SHA-256 of the finalized content (tamper evidence).
+  contentHash       String?                   @map("content_hash") @db.VarChar(64)
+
+  prescription Prescription       @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+  items        PrescriptionItem[]
+
+  @@unique([prescriptionId, versionNumber])
+  @@map("prescription_versions")
+}
+
+model PrescriptionItem {
+  id              String           @id @default(uuid()) @db.Uuid
+  versionId       String           @map("version_id") @db.Uuid
+  medicineId      String?          @map("medicine_id") @db.Uuid
+  name            String           @db.VarChar(200)
+  genericName     String?          @map("generic_name") @db.VarChar(200)
+  strength        String?          @db.VarChar(80)
+  form            MedicineForm?
+  dose            String?          @db.VarChar(60)
+  frequency       String?          @db.VarChar(60)
+  route           MedicineRoute?
+  durationValue   Int?             @map("duration_value")
+  durationUnit    DurationUnit?    @map("duration_unit")
+  quantity        Int?
+  mealInstruction MealInstruction? @map("meal_instruction")
+  timing          String?          @db.VarChar(100)
+  instructions    String?          @db.VarChar(300)
+  sortOrder       Int              @default(0) @map("sort_order")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  version  PrescriptionVersion @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  medicine Medicine?           @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+
+  @@index([versionId])
+  @@index([medicineId])
+  @@map("prescription_items")
+}
+
+/// Reusable templates (spec §11): personal (doctor_id set) or chamber-wide (doctor_id NULL).
+model PrescriptionTemplate {
+  id                   String   @id @default(uuid()) @db.Uuid
+  chamberId            String   @map("chamber_id") @db.Uuid
+  doctorId             String?  @map("doctor_id") @db.Uuid
+  name                 String   @db.VarChar(120)
+  description          String?  @db.VarChar(300)
+  /// [{ diagnosisId, name, code, isPrimary, certainty, note }]
+  diagnoses            Json     @default("[]")
+  /// [{ investigationId, name, instructions, priority }]
+  investigations       Json     @default("[]")
+  advice               String?  @db.VarChar(2000)
+  followUpInstructions String?  @map("follow_up_instructions") @db.VarChar(500)
+  createdById          String?  @map("created_by") @db.Uuid
+  createdByName        String?  @map("created_by_name") @db.VarChar(150)
+  version              Int      @default(1)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  chamber Chamber                    @relation(fields: [chamberId], references: [id], onDelete: Restrict)
+  doctor  Doctor?                    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  items   PrescriptionTemplateItem[]
+
+  @@index([chamberId])
+  @@map("prescription_templates")
+}
+
+model PrescriptionTemplateItem {
+  id              String           @id @default(uuid()) @db.Uuid
+  templateId      String           @map("template_id") @db.Uuid
+  medicineId      String?          @map("medicine_id") @db.Uuid
+  name            String           @db.VarChar(200)
+  genericName     String?          @map("generic_name") @db.VarChar(200)
+  strength        String?          @db.VarChar(80)
+  form            MedicineForm?
+  dose            String?          @db.VarChar(60)
+  frequency       String?          @db.VarChar(60)
+  route           MedicineRoute?
+  durationValue   Int?             @map("duration_value")
+  durationUnit    DurationUnit?    @map("duration_unit")
+  quantity        Int?
+  mealInstruction MealInstruction? @map("meal_instruction")
+  timing          String?          @db.VarChar(100)
+  instructions    String?          @db.VarChar(300)
+  sortOrder       Int              @default(0) @map("sort_order")
+
+  template PrescriptionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@map("prescription_template_items")
 }

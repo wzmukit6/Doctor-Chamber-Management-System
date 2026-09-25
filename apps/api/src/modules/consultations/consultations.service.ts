@@ -17,6 +17,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthorizationService } from '../authorization/authorization.service';
 import { AppointmentsService } from '../appointments/appointments.service';
+import { PrescriptionSettingsService } from '../settings/prescription-settings.service';
+import { cancelConsultationPrescription, finalizeConsultationPrescription, upsertConsultationDraft } from '../prescriptions/prescription-writer';
 import { AppError } from '../../common/errors/app-error';
 import { Actor } from '../../common/request-context';
 import { PageResult } from '../../common/interceptors/response.interceptor';
@@ -43,6 +45,7 @@ export class ConsultationsService {
     private readonly authz: AuthorizationService,
     private readonly audit: AuditService,
     private readonly appointments: AppointmentsService,
+    private readonly prescriptionSettings: PrescriptionSettingsService,
   ) {}
 
   // ─────────────────────────── Queries ───────────────────────────
@@ -158,6 +161,7 @@ export class ConsultationsService {
   async save(actor: Actor, id: string, input: SaveConsultationInput): Promise<ConsultationDto> {
     const c = await this.loadEditable(actor, id);
     if (c.version !== input.version) throw AppError.staleVersion();
+    if (input.prescription) this.authz.assertPermission(actor, PERMISSIONS.PRESCRIPTIONS_CREATE);
     const definitions = await this.prisma.vitalDefinition.findMany({ where: { id: { in: input.vitals.map((v) => v.definitionId) } } });
     const vitals = normalizeVitals(input.vitals, definitions);
 
@@ -222,6 +226,11 @@ export class ConsultationsService {
         await tx.consultationNote.create({ data: { consultationId: id, type: 'CLINICAL', text: input.clinicalNotes, createdById: actor.userId, createdByName: actor.fullName } });
       }
 
+      // The prescription (version-1 draft) is saved together with the consultation.
+      if (input.prescription) {
+        await upsertConsultationDraft(tx, actor, c, input.prescription);
+      }
+
       const last = this.lastDraftAudit.get(id) ?? 0;
       if (Date.now() - last > DRAFT_AUDIT_WINDOW_MS) {
         this.lastDraftAudit.set(id, Date.now());
@@ -251,7 +260,10 @@ export class ConsultationsService {
     }
 
     const now = new Date();
+    const rxSettings = await this.prescriptionSettings.get(c.chamberId);
     await this.prisma.$transaction(async (tx) => {
+      // Prescription version 1 is finalized in the same transaction (spec §45).
+      await finalizeConsultationPrescription(tx, this.audit, actor, c, now, rxSettings.defaultAdvice || null);
       const res = await tx.consultation.updateMany({
         where: { id, version, status: 'DRAFT' },
         data: { status: 'FINALIZED', finalizedAt: now, finalizedById: actor.userId, finalizedByName: actor.fullName, version: { increment: 1 } },
@@ -307,6 +319,7 @@ export class ConsultationsService {
         data: { status: 'CANCELLED', cancelledAt: new Date(), cancelledReason: reason, appointmentId: null, version: { increment: 1 } },
       });
       if (res.count !== 1) throw AppError.staleVersion();
+      await cancelConsultationPrescription(tx, id, new Date());
       if (c.appointmentId) {
         const back = await tx.appointment.updateMany({ where: { id: c.appointmentId, status: 'IN_CONSULTATION' }, data: { status: 'WAITING', version: { increment: 1 } } });
         if (back.count === 1) {
@@ -373,6 +386,7 @@ export class ConsultationsService {
     return toConsultationDto(c, {
       canSeeNotes: actor.permissions.has(PERMISSIONS.CLINICAL_NOTES_VIEW),
       canEdit: c.status === 'DRAFT' && actor.doctorId === c.doctorId && actor.permissions.has(PERMISSIONS.CONSULTATIONS_UPDATE),
+      canSeePrescription: actor.permissions.has(PERMISSIONS.PRESCRIPTIONS_VIEW),
     });
   }
 
