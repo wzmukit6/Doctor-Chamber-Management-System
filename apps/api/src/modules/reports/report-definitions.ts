@@ -601,7 +601,7 @@ async function revenue(db: PrismaClient, ctx: ReportContext, unit: 'day' | 'mont
     pay AS (SELECT ${bucket('p.received_at')} AS day,
               sum(CASE WHEN p.kind = 'REFUND' THEN -p.amount ELSE p.amount END) AS collected,
               sum(CASE WHEN p.kind = 'REFUND' THEN p.amount ELSE 0 END) AS refunds
-            FROM payments p JOIN invoices i ON i.id = p.invoice_id
+            FROM payments p ${ctx.doctorId ? Prisma.sql`JOIN invoices i ON i.id = p.invoice_id` : Prisma.empty}
             WHERE p.received_at >= ${ctx.start} AND p.received_at < ${ctx.end} ${inChamber(ctx, 'p')} ${byDoctor(ctx, 'i')} GROUP BY 1)
     SELECT to_char(days.day, ${fmt}) AS date, coalesce(inv.bills, 0)::int AS bills, coalesce(inv.billed, 0)::float8 AS billed,
       coalesce(inv.discounts, 0)::float8 AS discounts, coalesce(pay.collected, 0)::float8 AS collected, coalesce(pay.refunds, 0)::float8 AS refunds

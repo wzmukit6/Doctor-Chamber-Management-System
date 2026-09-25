@@ -154,7 +154,7 @@
     "audit_chain_ok": "Verified ({{count}} records)",
     "audit_chain_broken": "Broken at record #{{seq}}",
     "roadmap": "Delivery roadmap",
-    "roadmap_intro": "The system is being delivered module by module.",
+    "roadmap_intro": "All eight delivery phases are complete.",
     "recent_patients": "Recent patients",
     "patients_total": "Registered patients",
     "new_patients_30d": "New in last 30 days",
@@ -164,7 +164,18 @@
     "recent_prescriptions": "Recent prescriptions",
     "view_all": "View all",
     "collected_today": "Collected today",
-    "pending_dues": "Pending dues {{amount}} ({{count}})"
+    "pending_dues": "Pending dues {{amount}} ({{count}})",
+    "sys_database": "Database",
+    "sys_db_value": "{{ms}} ms · {{mb}} MB",
+    "sys_latency": "API latency (p95)",
+    "sys_errors": "Server errors",
+    "sys_errors_value": "{{errors}} of {{requests}} requests",
+    "sys_failed_logins": "Failed sign-ins (24 h)",
+    "sys_failed_value": "{{failed}} · {{locked}} locked",
+    "sys_sessions": "Active sessions",
+    "sys_version": "Version",
+    "sys_uptime": "up {{h}} h {{m}} min",
+    "sys_window": "Traffic figures cover the last {{n}} minutes."
   },
   "roles": {
     "SUPER_ADMIN": "Super Admin",

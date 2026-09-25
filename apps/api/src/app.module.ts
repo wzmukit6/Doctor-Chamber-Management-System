@@ -26,6 +26,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { AuthGuard } from './common/guards/auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { JsonContentMiddleware } from './common/guards/json-content.middleware';
+import { RequestLoggerMiddleware } from './common/observability/request-logger.middleware';
 
 const config = loadConfig();
 
@@ -63,6 +64,6 @@ const config = loadConfig();
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(JsonContentMiddleware).forRoutes('*');
+    consumer.apply(RequestLoggerMiddleware, JsonContentMiddleware).forRoutes('*');
   }
 }

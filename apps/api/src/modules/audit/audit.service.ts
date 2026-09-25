@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { logEvent } from '../../common/observability/log-event';
 import type { Actor, RequestMeta } from '../../common/request-context';
 import { sanitizeForAudit } from '../../common/utils/sanitize';
 
@@ -30,6 +31,25 @@ export interface AnonymousActor {
 /** Advisory-lock key serializing hash-chain appends. */
 const AUDIT_CHAIN_LOCK = 734_921_001;
 
+/** Audit actions that are also emitted to the application log for security monitoring (spec §64). */
+const SECURITY_EVENTS = new Set([
+  'auth.login_failed',
+  'auth.login_blocked',
+  'auth.account_locked',
+  'auth.password_reset_requested',
+  'auth.password_reset',
+  'auth.password_changed',
+  'auth.session_revoked',
+  'role.permissions_updated',
+  'settings.security_updated',
+  'user.deactivated',
+  'user.password_reset',
+  'user.unlocked',
+  'user.deleted',
+  'report.exported',
+  'audit.chain_verified',
+]);
+
 /**
  * Append-only, hash-chained audit trail (spec §20). Each record stores the
  * hash of the previous record; any tampering with historic rows breaks the
@@ -37,6 +57,8 @@ const AUDIT_CHAIN_LOCK = 734_921_001;
  */
 @Injectable()
 export class AuditService {
+  private readonly logger = new Logger('Security');
+
   constructor(private readonly prisma: PrismaService) {}
 
   /** Record an event performed by an authenticated actor. Pass `tx` to make the audit part of the business transaction. */
@@ -88,6 +110,10 @@ export class AuditService {
     event: AuditEvent,
     tx?: Tx,
   ): Promise<void> {
+    if (SECURITY_EVENTS.has(event.action) && process.env.NODE_ENV !== 'test') {
+      // Identifiers only — no names, emails or clinical values.
+      logEvent(this.logger, 'warn', { event: `security.${event.action}`, userId: who.userId, role: who.role, chamberId: who.chamberId, resourceType: event.resourceType, resourceId: event.resourceId ?? null, ip: who.ipAddress });
+    }
     const run = async (client: Tx) => {
       await client.$executeRaw`SELECT pg_advisory_xact_lock(${AUDIT_CHAIN_LOCK})`;
       const last = await client.auditLog.findFirst({ orderBy: { seq: 'desc' }, select: { hash: true } });

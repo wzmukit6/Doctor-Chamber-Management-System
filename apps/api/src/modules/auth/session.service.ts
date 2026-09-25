@@ -152,7 +152,8 @@ export class SessionService {
   setCookies(res: Response, session: IssuedSession) {
     const common = {
       secure: this.config.COOKIE_SECURE,
-      sameSite: 'lax' as const,
+      // Strict: the SPA and API are same-site; cookies are never needed on cross-site navigations.
+      sameSite: 'strict' as const,
       expires: session.expiresAt,
     };
     res.cookie(SESSION_COOKIE, session.token, { ...common, httpOnly: true, path: '/api' });

@@ -64,6 +64,8 @@ md += `
 | Exports need \`reports.export\` and are audited (\`report.exported\`). | \`ReportsService\` |
 | A doctor profile (signature, footer) can be changed by that doctor or by a user with \`users.update\` in the same chamber. The signature is printed only on issued prescriptions. | \`DoctorsService\`, \`PrescriptionsService\` |
 | The platform security policy (password rules, session timeouts, lockout) needs \`system.manage\` and applies immediately. | \`SecuritySettingsService\` |
+| System status (\`/system/status\`) needs \`system.manage\`. Health and readiness are public but reveal no data; \`/metrics\` needs a bearer token and is blocked at the edge. | \`HealthController\`, \`SystemController\` |
+| Every endpoint must declare a permission or be on the reviewed "any signed-in user" list. CI enforces this, and that each role gets 403 wherever it lacks a permission. | \`test/rbac-matrix.e2e-spec.ts\` |
 `;
 
 fs.writeFileSync(path.join(__dirname, '..', 'docs', 'PERMISSIONS.md'), md);

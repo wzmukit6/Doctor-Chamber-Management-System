@@ -66,6 +66,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return fail(status, code, message);
     }
 
+    // body-parser errors (malformed JSON, payload too large) carry a 4xx status.
+    const parserStatus = (exception as { status?: unknown; type?: unknown } | null)?.status;
+    if (typeof parserStatus === 'number' && parserStatus >= 400 && parserStatus < 500 && typeof (exception as { type?: unknown }).type === 'string') {
+      return fail(
+        parserStatus,
+        ERROR_CODES.VALIDATION_FAILED,
+        parserStatus === HttpStatus.PAYLOAD_TOO_LARGE ? 'Request body is too large' : 'Malformed request body',
+      );
+    }
+
     return fail(HttpStatus.INTERNAL_SERVER_ERROR, ERROR_CODES.INTERNAL_ERROR, 'An unexpected error occurred');
   }
 }

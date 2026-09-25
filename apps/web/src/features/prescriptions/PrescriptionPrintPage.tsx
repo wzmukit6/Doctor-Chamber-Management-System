@@ -9,7 +9,7 @@ import { Button, ErrorState, Skeleton, useToast } from '@/components/ui';
 import { ApiError } from '@/services/api';
 import { prescriptionsApi } from '@/services/endpoints';
 import { errorMessage } from '@/utils/errors';
-import i18n from '@/i18n';
+import i18n, { useLanguageReady } from '@/i18n';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { formatDirections, itemTitle } from './format';
 
@@ -92,7 +92,8 @@ export function PrescriptionPrintPage() {
 
 export function PrescriptionSheet({ d, qr, issued }: { d: PrescriptionPrintDto; qr: string | null; issued: boolean }) {
   // Printed labels follow the chamber's prescription language, independent of the UI language.
-  const t = useMemo(() => i18n.getFixedT(d.settings.language), [d.settings.language]);
+  const ready = useLanguageReady(d.settings.language);
+  const t = useMemo(() => i18n.getFixedT(d.settings.language), [d.settings.language, ready]);
   const lang = d.settings.language;
   const s = d.settings;
   const v = d.visit;

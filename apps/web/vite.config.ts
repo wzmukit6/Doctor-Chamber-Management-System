@@ -23,10 +23,16 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          react: ['react', 'react-dom', 'react-router-dom'],
-          data: ['@tanstack/react-query', 'zod', 'react-hook-form', '@hookform/resolvers'],
-          i18n: ['i18next', 'react-i18next'],
+        // Long-cached vendor chunks, matched by path so sub-entry points
+        // (react-dom/client, scheduler, …) land with their package.
+        manualChunks(id: string) {
+          const pkg = /node_modules\/((?:@[^/]+\/)?[^/]+)/.exec(id)?.[1];
+          if (!pkg) return id.includes('packages/shared') ? 'shared' : undefined;
+          if (['react', 'react-dom', 'scheduler', 'react-router', 'react-router-dom'].includes(pkg)) return 'react';
+          if (['@tanstack/react-query', '@tanstack/query-core', 'zod', 'react-hook-form', '@hookform/resolvers'].includes(pkg)) return 'data';
+          if (['i18next', 'react-i18next'].includes(pkg)) return 'i18n';
+          if (pkg === 'lucide-react') return 'icons';
+          return 'vendor';
         },
       },
     },

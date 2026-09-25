@@ -19,9 +19,18 @@ const envSchema = z.object({
   PASSWORD_RESET_MINUTES: z.coerce.number().int().min(5).default(30),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(300),
   LOGIN_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(10),
+  /** `json` in staging/production for log aggregation; `pretty` for local development. */
+  LOG_FORMAT: z.enum(['json', 'pretty']).optional(),
+  LOG_LEVEL: z.enum(['error', 'warn', 'log', 'debug', 'verbose']).default('log'),
+  /** Queries slower than this are logged (SQL only, never parameter values) and counted. */
+  SLOW_QUERY_MS: z.coerce.number().int().min(1).default(300),
+  /** Bearer token for Prometheus scraping of /api/metrics. Unset = endpoint disabled. */
+  METRICS_TOKEN: z.string().min(24).optional(),
+  APP_VERSION: z.string().default('0.8.0'),
 });
 
-export type AppConfig = z.infer<typeof envSchema> & {
+export type AppConfig = Omit<z.infer<typeof envSchema>, 'LOG_FORMAT'> & {
+  LOG_FORMAT: 'json' | 'pretty';
   webOrigins: string[];
   isProduction: boolean;
 };
@@ -40,8 +49,12 @@ export function loadConfig(): AppConfig {
   if (env.NODE_ENV === 'production' && !env.COOKIE_SECURE) {
     throw new Error('COOKIE_SECURE must be true in production');
   }
+  if (env.NODE_ENV === 'production' && env.WEB_ORIGIN.split(',').some((o) => !o.trim().startsWith('https://'))) {
+    throw new Error('WEB_ORIGIN must use https:// in production');
+  }
   cached = {
     ...env,
+    LOG_FORMAT: env.LOG_FORMAT ?? (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging' ? 'json' : 'pretty'),
     webOrigins: env.WEB_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean),
     isProduction: env.NODE_ENV === 'production',
   };

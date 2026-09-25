@@ -4,7 +4,7 @@
 consultations, prescriptions, billing and reports for doctors' chambers, with strict role-based
 access control, multi-chamber tenancy and a tamper-evident audit trail.
 
-> The application is delivered phase by phase. **Phases 1–7 are complete**: foundation
+> All **eight delivery phases are complete**: foundation
 > (authentication, users, roles & permissions, organizations/chambers, audit logs), patient
 > management (registration, search, profile, medical history, timeline) and appointments & queue
 > (calendar, doctor schedules, booking with conflict prevention, check-in, live token queue) and the
@@ -12,7 +12,9 @@ access control, multi-chamber tenancy and a tamper-evident audit trail.
 > prescriptions (medicine database, smart builder, templates, versioned revisions, A4/A5 print & PDF,
 > QR verification) and billing (bills, payments & refunds ledger, receipts, dues, fee schedule) and reports &
 > administration (19 role-scoped reports with CSV/Excel/PDF export, dashboard analytics, chamber,
-> doctor-profile and security settings).
+> doctor-profile and security settings) and hardening (security audit, every-role × every-endpoint
+> authorization tests, performance tuning on 100k patients, verified backups, disaster recovery,
+> Docker production deployment, monitoring).
 > See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Documentation
@@ -24,6 +26,9 @@ access control, multi-chamber tenancy and a tamper-evident audit trail.
 | [docs/PERMISSIONS.md](docs/PERMISSIONS.md) | Generated permission matrix and scope rules |
 | [docs/API.md](docs/API.md) | API conventions, error codes, endpoint list (OpenAPI at `/api/docs`) |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phases and status |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Production deployment, environments, backups, disaster recovery, monitoring |
+| [docs/SECURITY.md](docs/SECURITY.md) | Security audit: controls, test coverage, findings fixed, residual risks |
+| [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | Benchmark method, optimizations, results on a 100k-patient dataset |
 
 ## Tech stack
 
@@ -72,6 +77,23 @@ time (finished visits, a patient with the doctor, patients waiting) if today has
 | `npm run typecheck` | type-check all workspaces |
 | `npm run build` | production build of all workspaces |
 | `npm run docs:permissions` | regenerate `docs/PERMISSIONS.md` from the code |
+| `scripts/backup/backup.sh` · `restore.sh` · `verify.sh` | database backup, restore, and restore-verification (see OPERATIONS.md) |
+| `node apps/api/dist/cli/verify-database.js` | integrity check: migrations, audit hash chain, row counts |
+| `scripts/perf/benchmark.mjs` | API latency benchmark (see PERFORMANCE.md) |
+
+## Production deployment
+
+```bash
+cd deploy
+cp env/production.env.example env/production.env   # set SITE_DOMAIN, BOOTSTRAP_ADMIN_EMAIL
+./make-secrets.sh
+docker compose -f docker-compose.prod.yml --env-file env/production.env up -d --build
+```
+
+This runs PostgreSQL, a one-shot migration and bootstrap job (creates the first super admin,
+who must change the password), the API, Caddy (automatic HTTPS, static SPA, `/api` proxy) and a
+backup worker that takes a daily encrypted backup and proves it by a test restore.
+Full runbook: [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 Integration tests need a PostgreSQL user that may create databases; configure it in
 `apps/api/.env.test`.
@@ -82,8 +104,9 @@ Integration tests need a PostgreSQL user that may create databases; configure it
 apps/api         NestJS REST API, Prisma schema, migrations, seed, tests
 apps/web         React web client
 packages/shared  Permission model, zod schemas, error codes, shared types
-docs/            Architecture, database, permissions, API, roadmap
-scripts/         Tooling (documentation generators)
+deploy/          Production stack: compose file, Caddyfile, env templates, secrets script
+docs/            Architecture, database, permissions, API, security, performance, operations
+scripts/         Documentation generator, backup/restore/verify, performance tooling
 ```
 
 ## Clinical safety

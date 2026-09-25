@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Req, Res } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, Logger, Param, ParseUUIDPipe, Patch, Post, Req, Res } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
@@ -29,6 +29,8 @@ const config = loadConfig();
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger('Auth');
+
   constructor(
     private readonly auth: AuthService,
     private readonly sessions: SessionService,
@@ -109,7 +111,8 @@ export class AuthController {
   @Post('forgot-password')
   @HttpCode(200)
   async forgotPassword(@ValidBody(forgotPasswordSchema) body: ForgotPasswordInput, @Req() req: Request) {
-    await this.auth.forgotPassword(body, requestMeta(req));
+    // Not awaited: the response time must not reveal whether the account exists.
+    this.auth.forgotPassword(body, requestMeta(req)).catch((err: unknown) => this.logger.error(`forgot-password failed: ${err instanceof Error ? err.message : String(err)}`));
     return { message: 'If an account exists for this email, a reset link has been sent.' };
   }
 

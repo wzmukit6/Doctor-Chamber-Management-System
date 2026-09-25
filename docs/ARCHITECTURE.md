@@ -96,8 +96,11 @@ src/
     billing/                  invoices, payment/refund ledger, fee schedule, collections summary
     reports/                  report definitions (SQL), scope resolution, CSV/XLSX export, dashboard analytics
     settings/                 chamber settings (appointments, prescriptions, billing, profile) and platform security policy
-    health/
-prisma/                       schema, migrations (with hand-written constraints/triggers), seed
+    health/                   liveness, readiness, Prometheus metrics, super-admin system status
+  common/observability/       request log + request id, metrics, structured event logging
+  cli/verify-database.ts      integrity check for restored backups (migrations, audit chain, counts)
+prisma/                       schema, migrations (with hand-written constraints/triggers), seed,
+                              bootstrap.ts (production: RBAC + reference data + first super admin)
 test/                         integration tests against a throwaway database per run
 ```
 
@@ -123,14 +126,14 @@ src/
   server-side field errors are mapped back onto fields.
 * Every UI string is a translation key (`en.json`, `bn.json`).
 
-## 6. Security controls (Phase 1)
+## 6. Security controls
 
 | Control | Implementation |
 |---|---|
 | Password hashing | Argon2id (m=19 MiB, t=2, p=1) via `@node-rs/argon2` |
 | Password policy | ≥10 chars, upper, lower, digit — shared by UI and API |
 | Sessions | opaque 256-bit tokens, stored as SHA-256; idle (30 min) + absolute (12 h) expiry; revoked on logout, password change/reset, deactivation, chamber deletion |
-| Cookies | `HttpOnly`, `Secure` (enforced in production), `SameSite=Lax`, path-scoped |
+| Cookies | `HttpOnly`, `Secure` (enforced in production), `SameSite=Strict`, path-scoped |
 | CSRF | per-session double-submit token + JSON-only bodies |
 | Brute force | per-account lockout (5 failures → 15 min), IP rate limits (login 10/min, reset 5/15 min, global 300/min) |
 | Enumeration | identical responses and comparable timing for unknown emails; generic forgot-password response |
@@ -139,7 +142,12 @@ src/
 | Audit | append-only table (trigger blocks UPDATE/DELETE/TRUNCATE) + SHA-256 hash chain, verifiable via `/api/audit-logs/verify`; secrets stripped from audit values |
 | Concurrency | optimistic locking (`version`) on users, chambers, organizations → `409 STALE_VERSION` |
 | Deletion | soft delete (`deleted_at`, `deleted_by`, `deletion_reason`) with required reason |
-| Secrets | environment variables only; `.env` is git-ignored |
+| Secrets | environment variables / Docker secret files; never in images or git |
+| Caching | API responses `Cache-Control: no-store`; hashed static assets immutable |
+| Observability | JSON request logs (route patterns, never bodies or query strings), security events, slow-query log, Prometheus metrics, readiness probe |
+
+The Phase 8 audit, its tests and the findings fixed are in [SECURITY.md](SECURITY.md);
+deployment, backups and monitoring in [OPERATIONS.md](OPERATIONS.md).
 
 ## 7. Key decisions
 

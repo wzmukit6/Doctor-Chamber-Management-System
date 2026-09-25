@@ -1,0 +1,132 @@
+# Chamber Assistant — production / staging stack.
+#
+#   cd deploy
+#   cp env/production.env.example env/production.env   # then edit
+#   ./make-secrets.sh                                  # generates secrets/*
+#   docker compose -f docker-compose.prod.yml --env-file env/production.env up -d --build
+#
+# Services: db (PostgreSQL 16) · migrate (one-shot: migrations + bootstrap) ·
+# api (NestJS) · web (Caddy: TLS, SPA, /api proxy) · backup (daily dump + verified restore).
+name: chamber-${DEPLOY_ENV:-production}
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+
+x-api-env: &api-env
+  NODE_ENV: ${NODE_ENV:-production}
+  APP_VERSION: ${APP_VERSION:-0.8.0}
+  DB_HOST: db
+  DB_NAME: chamber
+  DB_USER: chamber_app
+  DB_PASSWORD_FILE: /run/secrets/app_db_password
+  WEB_ORIGIN: https://${SITE_DOMAIN}
+  WEB_URL: https://${SITE_DOMAIN}
+  COOKIE_SECURE: "true"
+  TRUST_PROXY: "true"
+  LOG_FORMAT: json
+  LOG_LEVEL: ${LOG_LEVEL:-log}
+  SLOW_QUERY_MS: ${SLOW_QUERY_MS:-300}
+  RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-300}
+  LOGIN_RATE_LIMIT_PER_MINUTE: ${LOGIN_RATE_LIMIT_PER_MINUTE:-10}
+  METRICS_TOKEN_FILE: /run/secrets/metrics_token
+
+services:
+  db:
+    <<: *hardening
+    image: postgres:16-alpine
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password, app_db_password]
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+    command: ["postgres", "-c", "jit=off", "-c", "log_min_duration_statement=500", "-c", "shared_buffers=256MB"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chamber"]
+      interval: 10s
+      retries: 10
+    networks: [backend]
+
+  migrate:
+    image: chamber-api:${APP_VERSION:-0.8.0}
+    build: { context: .., dockerfile: apps/api/Dockerfile, target: runtime }
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    restart: "no"
+    command: ["sh", "-c", "/app/node_modules/.bin/prisma migrate deploy && node dist-seed/prisma/bootstrap.js"]
+    environment:
+      <<: *api-env
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-}
+      BOOTSTRAP_ADMIN_PASSWORD_FILE: /run/secrets/bootstrap_admin_password
+    secrets: [app_db_password, metrics_token, bootstrap_admin_password]
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [backend]
+
+  api:
+    <<: *hardening
+    image: chamber-api:${APP_VERSION:-0.8.0}
+    read_only: true
+    tmpfs: [/tmp]
+    environment: *api-env
+    secrets: [app_db_password, metrics_token]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [backend, edge]
+
+  web:
+    <<: *hardening
+    image: chamber-web:${APP_VERSION:-0.8.0}
+    build: { context: .., dockerfile: apps/web/Dockerfile }
+    cap_add: [NET_BIND_SERVICE]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-${SITE_DOMAIN}}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [edge]
+
+  backup:
+    <<: *hardening
+    image: chamber-backup:${APP_VERSION:-0.8.0}
+    build: { context: .., dockerfile: apps/api/Dockerfile, target: backup }
+    environment:
+      BACKUP_TIME: ${BACKUP_TIME:-02:30}
+      BACKUP_KEEP_DAILY: ${BACKUP_KEEP_DAILY:-7}
+      BACKUP_KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-5}
+      BACKUP_KEEP_MONTHLY: ${BACKUP_KEEP_MONTHLY:-12}
+      BACKUP_UPLOAD_CMD: ${BACKUP_UPLOAD_CMD:-}
+      BACKUP_ON_START: ${BACKUP_ON_START:-false}
+    secrets: [postgres_password, backup_passphrase]
+    volumes:
+      - ${BACKUP_HOST_DIR:-./backups}:/backups
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [backend]
+
+networks:
+  backend: { internal: true }
+  edge: {}
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:
+
+secrets:
+  postgres_password: { file: ./secrets/postgres_password }
+  app_db_password: { file: ./secrets/app_db_password }
+  bootstrap_admin_password: { file: ./secrets/bootstrap_admin_password }
+  metrics_token: { file: ./secrets/metrics_token }
+  backup_passphrase: { file: ./secrets/backup_passphrase }

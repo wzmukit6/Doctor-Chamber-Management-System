@@ -78,6 +78,7 @@ import type {
   UpdateProfileInput,
   UpdateUserInput,
   UserDto,
+  SystemStatusDto,
 } from '@chamber/shared';
 import { api, API_BASE, ApiError } from './api';
 
@@ -130,6 +131,10 @@ export const chambersApi = {
   create: (input: CreateChamberInput) => api.post<ChamberDto>('/chambers', input),
   update: (id: string, input: UpdateChamberInput) => api.patch<ChamberDto>(`/chambers/${id}`, input),
   remove: (id: string, reason: string) => api.delete(`/chambers/${id}`, { reason }),
+};
+
+export const systemApi = {
+  status: () => api.get<SystemStatusDto>('/system/status'),
 };
 
 export const auditApi = {

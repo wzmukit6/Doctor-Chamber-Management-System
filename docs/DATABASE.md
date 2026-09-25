@@ -339,6 +339,8 @@ erDiagram
 | `doctors_signature_data_url_valid` CHECK | the signature is only ever an image data URL (PNG/JPEG/WebP) |
 | `consultations_chamber_finalized` (partial index on finalized consultations) | fast clinical reports by chamber and date |
 | `settings` keys `chamber_profile` (CHAMBER) and `security` (PLATFORM) | chamber logo, tagline and opening hours; the platform security policy |
+| `patients_code_trgm`, `patients_email_trgm` (GIN, `pg_trgm`, partial) | every branch of the patient-search OR is indexable, so no sequential scans (Phase 8) |
+| `ALTER DATABASE … SET jit = off` (migration) | JIT compilation cost ~400 ms per report query without benefit for this workload |
 
 ## Planned (next phases)
 

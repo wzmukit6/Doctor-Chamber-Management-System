@@ -206,6 +206,19 @@ Dates (`YYYY-MM-DD`) and times (`HH:MM`) are chamber-local; returned instants ar
 | GET / PUT | `/settings/security` | `system.manage` | password policy, session idle/absolute timeouts, lockout threshold/duration; audited |
 | GET | `/auth/password-policy` | public | the password rules currently in force (for forms) |
 
+## Phase 8 endpoints — operations
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| GET | `/health` | public | liveness: `status`, `uptimeSeconds`, `version` (no database access) |
+| GET | `/health/ready` | public | readiness: database reachable and no failed migrations; **503** otherwise |
+| GET | `/metrics` | `Authorization: Bearer <METRICS_TOKEN>` | Prometheus text format; **404** unless `METRICS_TOKEN` is configured and matches; blocked at the edge |
+| GET | `/system/status` | `system.manage` | version, uptime, memory, database latency/size/connections/latest migration, 15-minute traffic (requests, errors, p50/p95/p99), security (failed sign-ins, lockouts 24 h, active sessions) |
+
+Every response carries an `X-Request-Id` header (an incoming valid `X-Request-Id` is reused), and
+API responses are `Cache-Control: no-store`. Requests containing NUL bytes are rejected with 400;
+bodies over 1 MB with 413.
+
 ## Planned resources
 
 Hardening-phase additions are delivered (see [ROADMAP.md](ROADMAP.md)) with the same conventions.

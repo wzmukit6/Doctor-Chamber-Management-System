@@ -27,7 +27,7 @@ import { addDays, PERMISSIONS, zonedDate, type RoleKey } from '@chamber/shared';
 import { useAuth } from '@/stores/auth';
 import { useMoney } from '@/features/billing/money';
 import { AnalyticsOverview } from '@/features/reports/AnalyticsOverview';
-import { appointmentsApi, auditApi, consultationsApi, organizationsApi, chambersApi, invoicesApi, patientsApi, prescriptionsApi, queueApi, usersApi } from '@/services/endpoints';
+import { appointmentsApi, auditApi, systemApi, consultationsApi, organizationsApi, chambersApi, invoicesApi, patientsApi, prescriptionsApi, queueApi, usersApi } from '@/services/endpoints';
 import { useChamberTz, useToday } from '@/hooks/useChamber';
 import { BookAppointmentModal } from '@/features/appointments/components/BookAppointmentModal';
 import { PatientLine } from '@/features/patients/components/PatientBits';
@@ -161,7 +161,7 @@ const ROADMAP: { phase: number; key: string; status: 'done' | 'next' | 'planned'
   { phase: 5, key: 'Prescriptions — builder, templates, versioning, PDF', status: 'done' },
   { phase: 6, key: 'Billing & payments', status: 'done' },
   { phase: 7, key: 'Reports, analytics & settings', status: 'done' },
-  { phase: 8, key: 'Hardening & deployment', status: 'next' },
+  { phase: 8, key: 'Hardening & deployment', status: 'done' },
 ];
 
 function Roadmap() {
@@ -197,6 +197,18 @@ function SuperAdminDashboard() {
   const users = useQuery({ queryKey: ['dash', 'users'], queryFn: () => usersApi.list({ pageSize: 1, status: 'active' }) });
   const doctors = useQuery({ queryKey: ['dash', 'doctors'], queryFn: () => usersApi.list({ pageSize: 1, role: 'DOCTOR', status: 'active' }) });
   const chain = useQuery({ queryKey: ['dash', 'chain'], queryFn: () => auditApi.verify() });
+  const status = useQuery({ queryKey: ['dash', 'system'], queryFn: () => systemApi.status(), refetchInterval: 30_000 });
+  const s = status.data;
+  const rows: [string, ReactNode, 'success' | 'warning' | 'danger' | null][] = s
+    ? [
+        [t('dashboard.sys_database'), t('dashboard.sys_db_value', { ms: s.database.latencyMs, mb: s.database.sizeMb }), s.database.latencyMs > 200 ? 'warning' : 'success'],
+        [t('dashboard.sys_latency'), s.traffic.p95Ms === null ? '—' : `${Math.round(s.traffic.p95Ms)} ms`, s.traffic.p95Ms !== null && s.traffic.p95Ms > 1000 ? 'warning' : null],
+        [t('dashboard.sys_errors'), t('dashboard.sys_errors_value', { errors: s.traffic.serverErrors, requests: s.traffic.requests }), s.traffic.serverErrors > 0 ? 'danger' : null],
+        [t('dashboard.sys_failed_logins'), t('dashboard.sys_failed_value', { failed: s.security.failedLogins24h, locked: s.security.lockouts24h }), s.security.lockouts24h > 0 ? 'warning' : null],
+        [t('dashboard.sys_sessions'), s.security.activeSessions, null],
+        [t('dashboard.sys_version'), `${s.version} · ${s.environment} · ${t('dashboard.sys_uptime', { h: Math.floor(s.uptimeSeconds / 3600), m: Math.floor((s.uptimeSeconds % 3600) / 60) })}`, null],
+      ]
+    : [];
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -228,6 +240,27 @@ function SuperAdminDashboard() {
                 </Badge>
               )}
             </div>
+            {status.isLoading ? (
+              <Skeleton className="mt-3 h-24 w-full" />
+            ) : (
+              <dl className="mt-2 divide-y divide-border text-sm">
+                {rows.map(([label, value, tone]) => (
+                  <div key={label} className="flex items-center justify-between gap-3 py-1.5">
+                    <dt className="text-ink-muted">{label}</dt>
+                    <dd className="text-right tabular-nums text-ink">
+                      {tone ? (
+                        <Badge tone={tone} dot>
+                          {value}
+                        </Badge>
+                      ) : (
+                        value
+                      )}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            <p className="mt-2 text-2xs text-ink-subtle">{t('dashboard.sys_window', { n: s?.traffic.windowMinutes ?? 15 })}</p>
           </section>
           <Roadmap />
         </div>

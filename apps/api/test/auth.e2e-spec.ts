@@ -151,7 +151,11 @@ describe('Authentication (integration)', () => {
     expect(unknown.status).toBe(200);
     expect(known.body).toEqual(unknown.body);
 
-    const mail = [...InMemoryEmailProvider.outbox].reverse().find((m) => m.to === email);
+    let mail = [...InMemoryEmailProvider.outbox].reverse().find((m) => m.to === email);
+    for (let i = 0; !mail && i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      mail = [...InMemoryEmailProvider.outbox].reverse().find((m) => m.to === email);
+    }
     expect(mail).toBeDefined();
     const token = new URL(mail!.data!.link).searchParams.get('token')!;
 

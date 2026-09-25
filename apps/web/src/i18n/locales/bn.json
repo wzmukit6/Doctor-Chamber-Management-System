@@ -154,7 +154,7 @@
     "audit_chain_ok": "যাচাইকৃত ({{count}}টি রেকর্ড)",
     "audit_chain_broken": "রেকর্ড #{{seq}}-এ ভাঙা",
     "roadmap": "ডেলিভারি পরিকল্পনা",
-    "roadmap_intro": "সিস্টেমটি মডিউল অনুযায়ী ধাপে ধাপে সরবরাহ করা হচ্ছে।",
+    "roadmap_intro": "আটটি ধাপের কাজই সম্পন্ন হয়েছে।",
     "recent_patients": "সাম্প্রতিক রোগী",
     "patients_total": "নিবন্ধিত রোগী",
     "new_patients_30d": "গত ৩০ দিনে নতুন",
@@ -164,7 +164,18 @@
     "recent_prescriptions": "সাম্প্রতিক প্রেসক্রিপশন",
     "view_all": "সব দেখুন",
     "collected_today": "আজ আদায়",
-    "pending_dues": "বকেয়া {{amount}} ({{count}})"
+    "pending_dues": "বকেয়া {{amount}} ({{count}})",
+    "sys_database": "ডাটাবেস",
+    "sys_db_value": "{{ms}} মি.সে. · {{mb}} MB",
+    "sys_latency": "API সাড়া সময় (p95)",
+    "sys_errors": "সার্ভার ত্রুটি",
+    "sys_errors_value": "{{requests}}টি অনুরোধের মধ্যে {{errors}}টি",
+    "sys_failed_logins": "ব্যর্থ সাইন-ইন (২৪ ঘণ্টা)",
+    "sys_failed_value": "{{failed}} · {{locked}}টি লক",
+    "sys_sessions": "সক্রিয় সেশন",
+    "sys_version": "সংস্করণ",
+    "sys_uptime": "চালু {{h}} ঘ. {{m}} মি.",
+    "sys_window": "ট্রাফিকের হিসাব গত {{n}} মিনিটের।"
   },
   "roles": {
     "SUPER_ADMIN": "সুপার অ্যাডমিন",

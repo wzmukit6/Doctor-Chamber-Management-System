@@ -12,7 +12,54 @@ ships working backend, frontend, tests and documentation before the next one sta
 | 5. Prescriptions | Medicine database, smart builder, templates, finalization, versioning, A4 PDF, QR verification | ✅ Done |
 | 6. Billing | Fees, payments, receipts, dues, financial reports | ✅ Done |
 | 7. Reports & administration | Dashboard analytics, reports, exports (PDF/CSV/Excel), settings | ✅ Done |
-| 8. Hardening | Security audit, full RBAC matrix tests, performance, backups/restore, deployment | ⏭ Next |
+| 8. Hardening | Security audit, full RBAC matrix tests, performance, backups/restore, deployment | ✅ Done |
+
+## Phase 8 — delivered
+
+* **Security audit** ([SECURITY.md](SECURITY.md)): automated tests cover brute force, session
+  fixation, token theft, password-reset abuse, SQL/NUL injection, mass assignment, headers and
+  error hygiene. Findings fixed:
+  * a response-timing difference on forgot-password that revealed which accounts exist;
+  * NUL bytes and oversized or malformed bodies causing 500s;
+  * API responses that could be cached;
+  * the session cookie is now SameSite=Strict;
+  * two transitive dependency advisories (now 0 vulnerabilities; CI fails on new
+    high-severity ones).
+* **Every role × every endpoint**: routes are discovered from the running app (145).
+  * Anonymous requests get 401 everywhere.
+  * Every endpoint must declare a permission or be on a reviewed allow-list.
+  * Each role gets 403 wherever it lacks a permission and passes the guard wherever it has one.
+  * Plus the spec's scenarios (assistant → prescription edit, doctor A → chamber B patient,
+    manager A → chamber B, doctor → system settings).
+* **Performance** ([PERFORMANCE.md](PERFORMANCE.md)), benchmarked on 100k patients, 120k
+  appointments and 110k consultations:
+  * two trigram indexes: patient search 220–290 ms → 10–76 ms;
+  * JIT off: the 90-day dashboard went from 511 ms to 103 ms, and yearly reports got up to 40% faster;
+  * Bangla translations lazy-loaded, and vendor code in long-cached chunks (the app chunk is
+    44 kB gzip).
+* **Observability:**
+  * structured JSON request logs with request ids, never bodies or query strings;
+  * security event logs and a slow-query log;
+  * a Prometheus `/api/metrics` endpoint (token protected) and a readiness probe
+    (`/api/health/ready`);
+  * a **System health** card for super admins (database, p95 latency, errors, failed sign-ins,
+    sessions, version).
+* **Backups & recovery** ([OPERATIONS.md](OPERATIONS.md)):
+  * encrypted daily `pg_dump` with checksums, manifests and grandfather-father-son retention,
+    plus an off-site copy hook;
+  * **every backup is verified by restoring it** into a temporary database and checking
+    migrations, the audit hash chain and row counts;
+  * the backup container turns unhealthy on any failure;
+  * restore procedure, RPO/RTO and a disaster-recovery drill performed on the full stack.
+* **Production deployment:**
+  * Dockerfiles for the API, web and backup worker; `deploy/docker-compose.prod.yml` with
+    Caddy (automatic HTTPS, HSTS/CSP, compression);
+  * PostgreSQL on an internal network with a non-superuser application role;
+  * a one-shot migrate + bootstrap job that creates the first super admin, who must change the
+    password;
+  * Docker secrets, non-root read-only containers with dropped capabilities;
+  * staging and production env templates;
+  * CI builds the images and validates the configuration.
 
 ## Phase 7 — delivered
 

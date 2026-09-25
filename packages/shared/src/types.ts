@@ -697,3 +697,28 @@ export interface DoctorProfileDto {
   version: number;
   canEdit: boolean;
 }
+
+/** Platform health for super administrators (GET /system/status). */
+export interface SystemStatusDto {
+  version: string;
+  environment: string;
+  nodeVersion: string;
+  uptimeSeconds: number;
+  memoryMb: number;
+  database: { latencyMs: number; sizeMb: number; connections: number; latestMigration: string | null };
+  traffic: {
+    windowMinutes: number;
+    requests: number;
+    serverErrors: number;
+    clientErrors: number;
+    securityRejections: number;
+    p50Ms: number | null;
+    p95Ms: number | null;
+    p99Ms: number | null;
+    dbQueries: number;
+    dbAvgMs: number | null;
+    slowQueries: number;
+  };
+  security: { failedLogins24h: number; lockouts24h: number; blockedLogins24h: number; activeSessions: number };
+  generatedAt: string;
+}
