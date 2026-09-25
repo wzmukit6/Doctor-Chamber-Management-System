@@ -17,6 +17,7 @@ import type { Actor, RequestMeta } from '../../common/request-context';
 import { generateToken, sha256 } from '../../common/utils/crypto';
 import { diff } from '../../common/utils/sanitize';
 import { loadConfig } from '../../config/config';
+import { SecuritySettingsService } from '../settings/security-settings.service';
 import { PasswordService } from './password.service';
 import { IssuedSession, SessionService } from './session.service';
 import { membershipInclude, toMembershipSummary } from './membership.mapper';
@@ -45,6 +46,7 @@ export class AuthService {
     private readonly sessions: SessionService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationService,
+    private readonly security: SecuritySettingsService,
   ) {}
 
   async login(input: LoginInput, meta: RequestMeta): Promise<IssuedSession> {
@@ -74,11 +76,12 @@ export class AuthService {
 
     if (!(await this.passwords.verify(user.passwordHash, input.password))) {
       const failed = user.failedLoginCount + 1;
-      const lock = failed >= this.config.LOGIN_MAX_FAILED_ATTEMPTS;
+      const policy = await this.security.current();
+      const lock = failed >= policy.loginMaxFailedAttempts;
       await this.prisma.user.update({
         where: { id: user.id },
         data: lock
-          ? { failedLoginCount: 0, lockedUntil: new Date(Date.now() + this.config.LOGIN_LOCKOUT_MINUTES * 60_000) }
+          ? { failedLoginCount: 0, lockedUntil: new Date(Date.now() + policy.loginLockoutMinutes * 60_000) }
           : { failedLoginCount: failed },
       });
       await this.audit.recordAnonymous(
@@ -179,7 +182,7 @@ export class AuthService {
         { path: 'currentPassword', message: 'validation.password.incorrect' },
       ]);
     }
-    this.passwords.assertStrong(input.newPassword);
+    await this.passwords.assertStrong(input.newPassword);
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
@@ -236,7 +239,7 @@ export class AuthService {
     if (!record || record.usedAt || record.expiresAt <= new Date() || !record.user.isActive || record.user.deletedAt) {
       throw new AppError(ERROR_CODES.INVALID_TOKEN, 'This reset link is invalid or has expired', HttpStatus.BAD_REQUEST);
     }
-    this.passwords.assertStrong(input.newPassword);
+    await this.passwords.assertStrong(input.newPassword);
     const passwordHash = await this.passwords.hash(input.newPassword);
     await this.prisma.$transaction(async (tx) => {
       // Conditional update guards against the same token being used twice concurrently.

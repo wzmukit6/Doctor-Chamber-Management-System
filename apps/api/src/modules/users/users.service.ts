@@ -111,7 +111,7 @@ export class UsersService {
   async create(actor: Actor, input: CreateUserInput): Promise<UserDto> {
     const role = input.role as RoleKey;
     this.authz.assertCanManageRole(actor, role);
-    this.passwords.assertStrong(input.password);
+    await this.passwords.assertStrong(input.password);
 
     let chamberId: string | null = null;
     let organizationId: string | null = null;
@@ -264,7 +264,7 @@ export class UsersService {
     const { user, targetRole, scopedChamberId } = await this.loadTarget(actor, id);
     this.authz.assertCanManageRole(actor, targetRole);
     this.assertIdentityWithinScope(actor, user);
-    this.passwords.assertStrong(input.newPassword);
+    await this.passwords.assertStrong(input.newPassword);
     const passwordHash = await this.passwords.hash(input.newPassword);
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({

@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { Permission, RoleKey } from '@chamber/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthorizationService } from '../authorization/authorization.service';
+import { SecuritySettingsService } from '../settings/security-settings.service';
 import { AppError } from '../../common/errors/app-error';
 import type { Actor, RequestMeta } from '../../common/request-context';
 import { generateToken, safeEqualHex, sha256 } from '../../common/utils/crypto';
@@ -30,13 +31,15 @@ export class SessionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authz: AuthorizationService,
+    private readonly security: SecuritySettingsService,
   ) {}
 
   async create(userId: string, membershipId: string, meta: RequestMeta): Promise<IssuedSession> {
     const token = generateToken();
     const csrfToken = generateToken();
     const now = Date.now();
-    const expiresAt = new Date(now + this.config.SESSION_ABSOLUTE_HOURS * 3_600_000);
+    const policy = await this.security.current();
+    const expiresAt = new Date(now + policy.sessionAbsoluteHours * 3_600_000);
     const session = await this.prisma.session.create({
       data: {
         tokenHash: sha256(token),
@@ -45,7 +48,7 @@ export class SessionService {
         membershipId,
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
-        idleExpiresAt: new Date(Math.min(now + this.config.SESSION_IDLE_MINUTES * 60_000, expiresAt.getTime())),
+        idleExpiresAt: new Date(Math.min(now + policy.sessionIdleMinutes * 60_000, expiresAt.getTime())),
         expiresAt,
       },
     });
@@ -84,12 +87,13 @@ export class SessionService {
     }
 
     if (now.getTime() - session.lastSeenAt.getTime() > TOUCH_INTERVAL_MS) {
+      const idleMinutes = (await this.security.current()).sessionIdleMinutes;
       await this.prisma.session.update({
         where: { id: session.id },
         data: {
           lastSeenAt: now,
           idleExpiresAt: new Date(
-            Math.min(now.getTime() + this.config.SESSION_IDLE_MINUTES * 60_000, session.expiresAt.getTime()),
+            Math.min(now.getTime() + idleMinutes * 60_000, session.expiresAt.getTime()),
           ),
         },
       });

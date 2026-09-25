@@ -16,6 +16,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthorizationService } from '../authorization/authorization.service';
 import { PrescriptionSettingsService } from '../settings/prescription-settings.service';
+import { ChamberProfileService } from '../settings/chamber-profile.service';
 import { AppError } from '../../common/errors/app-error';
 import { Actor } from '../../common/request-context';
 import { PageResult } from '../../common/interceptors/response.interceptor';
@@ -39,6 +40,7 @@ export class PrescriptionsService {
     private readonly authz: AuthorizationService,
     private readonly audit: AuditService,
     private readonly settings: PrescriptionSettingsService,
+    private readonly chamberProfile: ChamberProfileService,
   ) {}
 
   /** Assistants and managers see issued prescriptions only; prescribers also see drafts. */
@@ -226,7 +228,7 @@ export class PrescriptionsService {
         include: {
           chamber: { select: { name: true, address: true, phone: true, email: true, timezone: true } },
           patient: { select: { patientCode: true, fullName: true, gender: true, dateOfBirth: true, phone: true } },
-          doctor: { select: { qualifications: true, specialty: true, registrationNo: true, user: { select: { fullName: true } } } },
+          doctor: { select: { qualifications: true, specialty: true, registrationNo: true, signatureDataUrl: true, prescriptionFooter: true, user: { select: { fullName: true } } } },
           symptoms: { orderBy: { sortOrder: 'asc' } },
           vitals: { include: { definition: true } },
           diagnoses: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }] },
@@ -235,6 +237,7 @@ export class PrescriptionsService {
       }),
       this.settings.get(rx.chamberId),
     ]);
+    const profile = await this.chamberProfile.get(rx.chamberId);
     const { version: _v, ...printSettings } = settings;
     return {
       prescriptionId: rx.id,
@@ -242,8 +245,16 @@ export class PrescriptionsService {
       status: rx.status,
       version: toVersionDto(v, { showToken: !!issuedVersion }),
       latestVersionNumber: rx.currentVersion,
-      chamber: c.chamber,
-      doctor: { fullName: c.doctor.user.fullName, qualifications: c.doctor.qualifications, specialty: c.doctor.specialty, registrationNo: c.doctor.registrationNo },
+      chamber: { ...c.chamber, logoDataUrl: profile.logoDataUrl ?? null, tagline: profile.tagline || null },
+      doctor: {
+        fullName: c.doctor.user.fullName,
+        qualifications: c.doctor.qualifications,
+        specialty: c.doctor.specialty,
+        registrationNo: c.doctor.registrationNo,
+        // Signature image only on issued versions; drafts must never look signed.
+        signatureDataUrl: issuedVersion ? c.doctor.signatureDataUrl : null,
+        prescriptionFooter: c.doctor.prescriptionFooter,
+      },
       patient: { patientCode: c.patient.patientCode, fullName: c.patient.fullName, age: ageFrom(c.patient.dateOfBirth), gender: c.patient.gender, phone: c.patient.phone },
       visit: {
         visitNumber: c.visitNumber,

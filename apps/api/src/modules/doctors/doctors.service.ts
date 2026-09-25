@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { DoctorDto, DoctorFeesInput, DoctorScheduleInput } from '@chamber/shared';
+import { DoctorDto, DoctorFeesInput, DoctorProfileDto, DoctorScheduleInput, DoctorSelfProfileInput, PERMISSIONS } from '@chamber/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthorizationService } from '../authorization/authorization.service';
@@ -23,6 +23,8 @@ function toDto(d: DoctorRow): DoctorDto {
     consultationFee: d.consultationFee !== null ? Number(d.consultationFee) : null,
     followUpFee: d.followUpFee !== null ? Number(d.followUpFee) : null,
     reportReviewFee: d.reportReviewFee !== null ? Number(d.reportReviewFee) : null,
+    registrationNo: d.registrationNo,
+    hasSignature: !!d.signatureDataUrl,
     isActive: d.isActive && d.user.isActive && !d.user.deletedAt,
     schedule: d.schedule.map((w) => ({ weekday: w.weekday, startTime: w.startTime, endTime: w.endTime })),
     slotMinutes: d.slotMinutes,
@@ -116,5 +118,58 @@ export class DoctorsService {
       );
     });
     return this.get(actor, id);
+  }
+
+  /** Doctor settings (spec §34): the doctor edits their own profile; managers (users.update) any doctor in the chamber. */
+  private canEditProfile(actor: Actor, doctorId: string) {
+    return actor.doctorId === doctorId || actor.permissions.has(PERMISSIONS.USERS_UPDATE);
+  }
+
+  async getProfile(actor: Actor, id: string): Promise<DoctorProfileDto> {
+    const d = await this.load(actor, id);
+    return {
+      id: d.id,
+      fullName: d.user.fullName,
+      qualifications: d.qualifications,
+      specialty: d.specialty,
+      registrationNo: d.registrationNo,
+      bio: d.bio,
+      signatureDataUrl: d.signatureDataUrl,
+      prescriptionFooter: d.prescriptionFooter,
+      version: d.version,
+      canEdit: this.canEditProfile(actor, d.id),
+    };
+  }
+
+  async updateProfile(actor: Actor, id: string, input: DoctorSelfProfileInput): Promise<DoctorProfileDto> {
+    const before = await this.load(actor, id);
+    if (!this.canEditProfile(actor, id)) throw AppError.forbidden('You can only edit your own doctor profile');
+    if (before.version !== input.version) throw AppError.staleVersion();
+    const data = {
+      qualifications: input.qualifications,
+      specialty: input.specialty,
+      registrationNo: input.registrationNo,
+      bio: input.bio,
+      signatureDataUrl: input.signatureDataUrl ?? null,
+      prescriptionFooter: input.prescriptionFooter,
+    };
+    await this.prisma.$transaction(async (tx) => {
+      const res = await tx.doctor.updateMany({ where: { id, version: input.version }, data: { ...data, version: { increment: 1 } } });
+      if (res.count !== 1) throw AppError.staleVersion();
+      const view = (v: { signatureDataUrl: string | null } & Record<string, unknown>) => ({ ...v, signatureDataUrl: v.signatureDataUrl ? 'image' : null });
+      await this.audit.record(
+        actor,
+        {
+          action: 'doctor.profile_updated',
+          resourceType: 'doctor',
+          resourceId: id,
+          oldValue: view({ qualifications: before.qualifications, specialty: before.specialty, registrationNo: before.registrationNo, bio: before.bio, signatureDataUrl: before.signatureDataUrl, prescriptionFooter: before.prescriptionFooter }),
+          newValue: view(data),
+          chamberId: before.chamberId,
+        },
+        tx,
+      );
+    });
+    return this.getProfile(actor, id);
   }
 }

@@ -25,6 +25,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthorizationService } from '../authorization/authorization.service';
 import { BillingSettingsService } from '../settings/billing-settings.service';
+import { ChamberProfileService } from '../settings/chamber-profile.service';
 import { AppError } from '../../common/errors/app-error';
 import { Actor } from '../../common/request-context';
 import { PageResult } from '../../common/interceptors/response.interceptor';
@@ -47,6 +48,7 @@ export class InvoicesService {
     private readonly authz: AuthorizationService,
     private readonly audit: AuditService,
     private readonly settings: BillingSettingsService,
+    private readonly chamberProfile: ChamberProfileService,
   ) {}
 
   private async chamber(actor: Actor) {
@@ -415,7 +417,8 @@ export class InvoicesService {
       this.settings.get(inv.chamberId),
     ]);
     const { version: _v, ...s } = settings;
-    return { invoice: toInvoiceDto(inv), chamber, settings: s };
+    const profile = await this.chamberProfile.get(inv.chamberId);
+    return { invoice: toInvoiceDto(inv), chamber: { ...chamber, logoDataUrl: profile.logoDataUrl ?? null }, settings: s };
   }
 
   async logPrint(actor: Actor, id: string) {

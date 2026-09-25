@@ -175,21 +175,24 @@ model UserRole {
 
 /// Clinical profile of a doctor inside a chamber.
 model Doctor {
-  id              String   @id @default(uuid()) @db.Uuid
-  userId          String   @map("user_id") @db.Uuid
-  chamberId       String   @map("chamber_id") @db.Uuid
-  qualifications  String?  @db.VarChar(300)
-  specialty       String?  @db.VarChar(150)
-  registrationNo  String?  @map("registration_no") @db.VarChar(80)
-  consultationFee Decimal? @map("consultation_fee") @db.Decimal(12, 2)
-  followUpFee     Decimal? @map("follow_up_fee") @db.Decimal(12, 2)
-  reportReviewFee Decimal? @map("report_review_fee") @db.Decimal(12, 2)
-  bio             String?  @db.VarChar(1000)
-  signatureFileId String?  @map("signature_file_id") @db.Uuid
-  isActive        Boolean  @default(true) @map("is_active")
-  version         Int      @default(1)
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  chamberId          String   @map("chamber_id") @db.Uuid
+  qualifications     String?  @db.VarChar(300)
+  specialty          String?  @db.VarChar(150)
+  registrationNo     String?  @map("registration_no") @db.VarChar(80)
+  consultationFee    Decimal? @map("consultation_fee") @db.Decimal(12, 2)
+  followUpFee        Decimal? @map("follow_up_fee") @db.Decimal(12, 2)
+  reportReviewFee    Decimal? @map("report_review_fee") @db.Decimal(12, 2)
+  bio                String?  @db.VarChar(1000)
+  signatureFileId    String?  @map("signature_file_id") @db.Uuid
+  /// Signature image as a data URL (PNG/JPEG/WebP, size-limited), printed on prescriptions.
+  signatureDataUrl   String?  @map("signature_data_url")
+  prescriptionFooter String?  @map("prescription_footer") @db.VarChar(300)
+  isActive           Boolean  @default(true) @map("is_active")
+  version            Int      @default(1)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   slotMinutes      Int? @map("slot_minutes")
   maxDailyPatients Int? @map("max_daily_patients")

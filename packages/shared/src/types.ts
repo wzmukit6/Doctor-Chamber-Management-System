@@ -190,6 +190,8 @@ export interface DoctorDto {
   consultationFee: number | null;
   followUpFee: number | null;
   reportReviewFee: number | null;
+  registrationNo: string | null;
+  hasSignature: boolean;
   isActive: boolean;
   schedule: DoctorScheduleWindowDto[];
   slotMinutes: number | null;
@@ -492,8 +494,8 @@ export interface PrescriptionPrintDto {
   status: PrescriptionDto['status'];
   version: PrescriptionVersionDto;
   latestVersionNumber: number;
-  chamber: { name: string; address: string | null; phone: string | null; email: string | null; timezone: string };
-  doctor: { fullName: string; qualifications: string | null; specialty: string | null; registrationNo: string | null };
+  chamber: { name: string; address: string | null; phone: string | null; email: string | null; timezone: string; logoDataUrl: string | null; tagline: string | null };
+  doctor: { fullName: string; qualifications: string | null; specialty: string | null; registrationNo: string | null; signatureDataUrl: string | null; prescriptionFooter: string | null };
   patient: { patientCode: string; fullName: string; age: number | null; gender: string; phone: string | null };
   visit: {
     visitNumber: number;
@@ -618,7 +620,7 @@ export interface BillingSummaryDto {
 
 export interface InvoicePrintDto {
   invoice: InvoiceDto;
-  chamber: { name: string; address: string | null; phone: string | null; email: string | null; timezone: string };
+  chamber: { name: string; address: string | null; phone: string | null; email: string | null; timezone: string; logoDataUrl: string | null };
   settings: BillingSettings;
 }
 
@@ -627,4 +629,71 @@ export interface AppointmentBillingDto {
   invoiceNumber: string;
   status: InvoiceSummaryDto['status'];
   due: number;
+}
+
+// ───────────── Reports & analytics (Phase 7) ─────────────
+
+export interface LocalizedText {
+  en: string;
+  bn: string;
+}
+
+export type ReportValueType = 'text' | 'number' | 'money' | 'percent' | 'date' | 'datetime' | 'minutes';
+
+export interface ReportColumnDto {
+  key: string;
+  label: LocalizedText;
+  type: ReportValueType;
+  /** Display labels for coded values (status, gender, method…). */
+  options?: Record<string, LocalizedText>;
+}
+
+export interface ReportResultDto {
+  key: string;
+  group: 'operational' | 'clinical' | 'financial';
+  title: LocalizedText;
+  params: { from: string; to: string; doctorId: string | null; scope: 'doctor' | 'chamber' | 'platform'; chamberName: string | null };
+  columns: ReportColumnDto[];
+  rows: Record<string, string | number | null>[];
+  summary: { label: LocalizedText; value: string | number | null; type: ReportValueType }[];
+  chart: { type: 'column' | 'line' | 'hbar' | 'stacked'; x: string; series: { key: string; label: LocalizedText }[] } | null;
+  /** The report reflects the current state and ignores the date range (e.g. outstanding dues). */
+  ignoresRange: boolean;
+  truncated: boolean;
+  generatedAt: string;
+}
+
+export interface ReportCatalogEntryDto {
+  key: string;
+  group: 'operational' | 'clinical' | 'financial';
+  title: LocalizedText;
+  description: LocalizedText;
+  canExport: boolean;
+  /** Doctors see their own data only. */
+  personal: boolean;
+}
+
+export interface DashboardAnalyticsDto {
+  from: string;
+  to: string;
+  scope: 'doctor' | 'chamber' | 'platform';
+  appointmentsPerDay: { date: string; total: number; completed: number }[] | null;
+  patientsPerDay: { date: string; new: number; returning: number }[] | null;
+  revenuePerDay: { date: string; collected: number; billed: number }[] | null;
+  topDiagnoses: { name: string; count: number }[] | null;
+  appointmentStatus: { status: string; count: number }[] | null;
+  doctorWorkload: { doctorName: string; completed: number }[] | null;
+}
+
+export interface DoctorProfileDto {
+  id: string;
+  fullName: string;
+  qualifications: string | null;
+  specialty: string | null;
+  registrationNo: string | null;
+  bio: string | null;
+  signatureDataUrl: string | null;
+  prescriptionFooter: string | null;
+  version: number;
+  canEdit: boolean;
 }

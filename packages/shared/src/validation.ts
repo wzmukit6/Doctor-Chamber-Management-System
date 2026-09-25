@@ -22,18 +22,45 @@ export const PASSWORD_POLICY = {
   requireDigit: true,
 } as const;
 
-export function passwordIssues(password: string): string[] {
+/** Configurable policy (Settings → Security); defaults match PASSWORD_POLICY. */
+export interface PasswordPolicyRules {
+  passwordMinLength: number;
+  passwordRequireUpper: boolean;
+  passwordRequireLower: boolean;
+  passwordRequireDigit: boolean;
+  passwordRequireSymbol: boolean;
+}
+
+export const DEFAULT_PASSWORD_POLICY: PasswordPolicyRules = {
+  passwordMinLength: PASSWORD_POLICY.minLength,
+  passwordRequireUpper: PASSWORD_POLICY.requireUpper,
+  passwordRequireLower: PASSWORD_POLICY.requireLower,
+  passwordRequireDigit: PASSWORD_POLICY.requireDigit,
+  passwordRequireSymbol: false,
+};
+
+/** The absolute floor enforced by schemas; the configurable policy is checked on top by the server. */
+export const PASSWORD_FLOOR = 8;
+
+export function passwordIssues(password: string, policy: PasswordPolicyRules = DEFAULT_PASSWORD_POLICY): string[] {
   const issues: string[] = [];
-  if (password.length < PASSWORD_POLICY.minLength) issues.push('validation.password.min_length');
+  if (password.length < Math.max(policy.passwordMinLength, PASSWORD_FLOOR)) issues.push('validation.password.min_length');
   if (password.length > PASSWORD_POLICY.maxLength) issues.push('validation.password.max_length');
-  if (PASSWORD_POLICY.requireUpper && !/[A-Z]/.test(password)) issues.push('validation.password.upper');
-  if (PASSWORD_POLICY.requireLower && !/[a-z]/.test(password)) issues.push('validation.password.lower');
-  if (PASSWORD_POLICY.requireDigit && !/\d/.test(password)) issues.push('validation.password.digit');
+  if (policy.passwordRequireUpper && !/[A-Z]/.test(password)) issues.push('validation.password.upper');
+  if (policy.passwordRequireLower && !/[a-z]/.test(password)) issues.push('validation.password.lower');
+  if (policy.passwordRequireDigit && !/\d/.test(password)) issues.push('validation.password.digit');
+  if (policy.passwordRequireSymbol && !/[^A-Za-z0-9]/.test(password)) issues.push('validation.password.symbol');
   return issues;
 }
 
+/**
+ * Structural check only (length floor/ceiling). The chamber-independent
+ * platform policy (Settings → Security) is enforced by the server's
+ * PasswordService, so an administrator can tighten or relax it at runtime.
+ */
 export const passwordSchema = z.string().superRefine((value, ctx) => {
-  for (const issue of passwordIssues(value)) ctx.addIssue({ code: 'custom', message: issue });
+  if (value.length < PASSWORD_FLOOR) ctx.addIssue({ code: 'custom', message: 'validation.password.min_length' });
+  if (value.length > PASSWORD_POLICY.maxLength) ctx.addIssue({ code: 'custom', message: 'validation.password.max_length' });
 });
 
 export const uuidSchema = z.string().uuid('validation.uuid');

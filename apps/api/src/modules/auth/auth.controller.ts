@@ -20,6 +20,7 @@ import { CurrentActor, Public, SkipCsrf } from '../../common/decorators/auth.dec
 import { ValidBody } from '../../common/decorators/validated.decorator';
 import { Actor, requestMeta } from '../../common/request-context';
 import { loadConfig } from '../../config/config';
+import { SecuritySettingsService } from '../settings/security-settings.service';
 import { AuthService } from './auth.service';
 import { SessionService } from './session.service';
 
@@ -31,7 +32,22 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly sessions: SessionService,
+    private readonly security: SecuritySettingsService,
   ) {}
+
+  /** The active password policy, so forms can show and pre-check it (the server always re-checks). */
+  @Public()
+  @Get('password-policy')
+  async passwordPolicy() {
+    const s = await this.security.current();
+    return {
+      passwordMinLength: s.passwordMinLength,
+      passwordRequireUpper: s.passwordRequireUpper,
+      passwordRequireLower: s.passwordRequireLower,
+      passwordRequireDigit: s.passwordRequireDigit,
+      passwordRequireSymbol: s.passwordRequireSymbol,
+    };
+  }
 
   @Public()
   @SkipCsrf()
