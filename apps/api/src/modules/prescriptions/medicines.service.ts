@@ -60,7 +60,8 @@ export class MedicinesService {
       SELECT m.*, (f.doctor_id IS NOT NULL) AS is_favorite, ${score} AS score
       FROM medicines m ${this.favoriteJoin(actor)}
       WHERE ${scope} ${active} ${form} ${match}
-      ORDER BY score DESC, lower(coalesce(m.brand_name, m.generic_name)), lower(m.generic_name), m.strength
+      -- Ties (e.g. a typo matching every strength): chamber brands, then tablets/capsules, then name.
+      ORDER BY score DESC, (m.chamber_id IS NULL), (m.form NOT IN ('TABLET', 'CAPSULE')), lower(coalesce(m.brand_name, m.generic_name)), lower(m.generic_name), m.strength
       LIMIT ${q.limit}`;
     return rows.map(toMedicineDto);
   }

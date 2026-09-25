@@ -3,16 +3,20 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
-import { AlertTriangle, ArrowLeft, CheckCircle2, CloudOff, Loader2, Lock, Save } from 'lucide-react';
-import { addDays, PERMISSIONS, type SaveConsultationInput } from '@chamber/shared';
+import { AlertTriangle, ArrowLeft, CheckCircle2, CloudOff, Copy, ExternalLink, Eye, Loader2, Lock, Printer, Save } from 'lucide-react';
+import { addDays, PERMISSIONS, type PrescriptionTemplateDto, type SaveConsultationInput } from '@chamber/shared';
 import { Badge, Button, ConfirmDialog, ErrorState, Skeleton, Textarea, useToast } from '@/components/ui';
 import { ApiError } from '@/services/api';
-import { consultationsApi, vitalDefinitionsApi, type ConsultationDetail } from '@/services/endpoints';
+import { consultationsApi, prescriptionsApi, settingsApi, vitalDefinitionsApi, type ConsultationDetail } from '@/services/endpoints';
 import { useAuth } from '@/stores/auth';
 import { useToday } from '@/hooks/useChamber';
 import { errorMessage } from '@/utils/errors';
 import { formatRelative } from '@/utils/format';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { PrescriptionBuilder } from '@/features/prescriptions/components/PrescriptionBuilder';
+import { RxItemsView } from '@/features/prescriptions/components/RxItemsView';
+import { SaveTemplateButton, TemplateApplyMenu, type TemplateContent } from '@/features/prescriptions/components/TemplateControls';
+import { contentPayload, draftFrom, mergeAdvice, mergeRows, rowFromItem, type RxDraft } from '@/features/prescriptions/rx';
 import { PatientSummaryPanel } from './components/PatientSummaryPanel';
 import { ConsultationView } from './components/ConsultationView';
 import {
@@ -38,6 +42,7 @@ interface Draft {
   clinicalNotes: string;
   followUpDate: string;
   followUpInstructions: string;
+  rx: RxDraft;
 }
 
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
@@ -60,10 +65,11 @@ function toDraft(c: ConsultationDetail): Draft {
     clinicalNotes: c.clinicalNotes ?? '',
     followUpDate: c.followUpDate ?? '',
     followUpInstructions: c.followUpInstructions ?? '',
+    rx: c.prescription ? draftFrom(c.prescription.items, c.prescription.advice) : { items: [], advice: '' },
   };
 }
 
-function toPayload(d: Draft, version: number): SaveConsultationInput {
+function toPayload(d: Draft, version: number, withRx: boolean): SaveConsultationInput {
   const nul = (v: string) => (v.trim() ? v.trim() : null);
   return {
     complaints: d.complaints.map((s) => ({ complaintId: s.complaintId, text: s.text, duration: nul(s.duration), note: nul(s.note) })),
@@ -81,6 +87,7 @@ function toPayload(d: Draft, version: number): SaveConsultationInput {
     clinicalNotes: nul(d.clinicalNotes),
     followUpDate: d.followUpDate || null,
     followUpInstructions: nul(d.followUpInstructions),
+    ...(withRx ? { prescription: contentPayload(d.rx) } : {}),
     version,
   };
 }
@@ -101,6 +108,8 @@ export function ConsultationPage() {
 
   const q = useQuery({ queryKey: ['consultations', id], queryFn: () => consultationsApi.get(id!), refetchOnWindowFocus: false });
   const defs = useQuery({ queryKey: ['vital-definitions'], queryFn: () => vitalDefinitionsApi.list(), staleTime: 10 * 60_000 });
+  const canPrescribe = can(PERMISSIONS.PRESCRIPTIONS_CREATE);
+  const rxSettings = useQuery({ queryKey: ['settings', 'prescriptions'], queryFn: settingsApi.prescriptions, staleTime: 5 * 60_000, enabled: can(PERMISSIONS.PRESCRIPTIONS_VIEW) });
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('idle');
@@ -110,6 +119,8 @@ export function ConsultationPage() {
   const [busy, setBusy] = useState(false);
   const [addendum, setAddendum] = useState('');
   const versionRef = useRef(0);
+  const canPrescribeRef = useRef(canPrescribe);
+  canPrescribeRef.current = canPrescribe;
   const draftRef = useRef<Draft | null>(null);
   const inFlight = useRef<Promise<boolean> | null>(null);
   const timer = useRef<number | null>(null);
@@ -131,7 +142,7 @@ export function ConsultationPage() {
     if (!id || !draftRef.current) return false;
     if (inFlight.current) await inFlight.current;
     if (timer.current) window.clearTimeout(timer.current);
-    const payload = toPayload(draftRef.current, versionRef.current);
+    const payload = toPayload(draftRef.current, versionRef.current, canPrescribeRef.current);
     const snapshot = draftRef.current;
     setSaveState('saving');
     const run = (async () => {
@@ -256,6 +267,88 @@ export function ConsultationPage() {
     }
   };
 
+  // A new prescription starts with the chamber's default advice (spec §34).
+  const advicePrefilled = useRef(false);
+  useEffect(() => {
+    const advice = rxSettings.data?.defaultAdvice;
+    if (advicePrefilled.current || !advice || !draft || q.data?.prescription || draft.rx.advice || draft.rx.items.length || !q.data?.canEdit) return;
+    advicePrefilled.current = true;
+    const next = { ...draft, rx: { ...draft.rx, advice } };
+    draftRef.current = next;
+    setDraft(next);
+  }, [rxSettings.data, draft, q.data]);
+
+  /** Applying a template pre-fills diagnoses, investigations, medicines, advice and follow-up instructions (spec §11). */
+  const applyTemplate = (tpl: PrescriptionTemplateDto) => {
+    let skipped = 0;
+    update((d) => {
+      const dxNames = new Set(d.diagnoses.map((x) => x.name.toLowerCase()));
+      const diagnoses = [
+        ...d.diagnoses,
+        ...tpl.diagnoses
+          .filter((x) => !dxNames.has(x.name.toLowerCase()))
+          .map((x) => ({ diagnosisId: x.diagnosisId ?? null, name: x.name, code: x.code ?? null, isPrimary: false, certainty: (x.certainty ?? 'CONFIRMED') as DiagnosisRow['certainty'], note: x.note ?? '' })),
+      ];
+      if (diagnoses.length && !diagnoses.some((x) => x.isPrimary)) diagnoses[0] = { ...diagnoses[0]!, isPrimary: true };
+      const invNames = new Set(d.investigations.map((x) => x.name.toLowerCase()));
+      const investigations = [
+        ...d.investigations,
+        ...tpl.investigations
+          .filter((x) => !invNames.has(x.name.toLowerCase()))
+          .map((x) => ({ investigationId: x.investigationId ?? null, name: x.name, instructions: x.instructions ?? '', priority: (x.priority ?? 'ROUTINE') as InvestigationRow['priority'] })),
+      ];
+      const [items, dup] = mergeRows(d.rx.items, tpl.items.map(rowFromItem));
+      skipped = dup;
+      return {
+        diagnoses,
+        investigations,
+        rx: { items, advice: mergeAdvice(d.rx.advice, tpl.advice) },
+        followUpInstructions: d.followUpInstructions || tpl.followUpInstructions || '',
+      };
+    });
+    toast.success(skipped ? t('rx.template_applied_skipped', { name: tpl.name, count: skipped }) : t('rx.template_applied', { name: tpl.name }));
+  };
+
+  const copyPrevious = async () => {
+    if (!c) return;
+    try {
+      const prev = await prescriptionsApi.latest(c.patient.id, c.id);
+      if (!prev || !prev.items.length) {
+        toast.info(t('rx.no_previous'));
+        return;
+      }
+      let added = 0;
+      update((d) => {
+        const [items] = mergeRows(d.rx.items, prev.items.map(rowFromItem));
+        added = items.length - d.rx.items.length;
+        return { rx: { ...d.rx, items } };
+      });
+      toast.success(t('rx.copied', { count: added, rx: prev.rxNumber ?? '' }));
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  };
+
+  const templateContent = (): TemplateContent => {
+    const p = toPayload(draftRef.current!, 1, true);
+    return {
+      diagnoses: p.diagnoses,
+      investigations: p.investigations,
+      items: p.prescription?.items ?? [],
+      advice: p.prescription?.advice ?? null,
+      followUpInstructions: p.followUpInstructions ?? null,
+    };
+  };
+
+  const openPreview = async () => {
+    // Open the tab within the click (popup blockers), then point it at the saved draft.
+    const tab = window.open('', '_blank');
+    if (tab) tab.opener = null;
+    const rxId = (await saveNow()) ? queryClient.getQueryData<ConsultationDetail>(['consultations', id])?.prescription?.id : undefined;
+    if (rxId && tab) tab.location.href = `/prescriptions/${rxId}/print`;
+    else tab?.close();
+  };
+
   const vitalDefs = useMemo(() => defs.data ?? [], [defs.data]);
   const recordedBy = useMemo(() => Object.fromEntries((c?.vitals ?? []).map((v) => [v.definitionId, v.recordedByName])), [c?.vitals]);
 
@@ -286,8 +379,18 @@ export function ConsultationPage() {
         </Badge>
         {editable && <SaveIndicator state={saveState} savedAt={savedAt} />}
         <div className="ml-auto flex gap-2">
+          {!editable && c.prescription && c.prescription.status !== 'DRAFT' && can(PERMISSIONS.PRESCRIPTIONS_PRINT) && (
+            <Link to={`/prescriptions/${c.prescription.id}/print`} target="_blank" rel="noopener" className="inline-flex h-8 items-center gap-1.5 rounded bg-primary-700 px-3 text-xs font-medium text-white hover:bg-primary-800">
+              <Printer className="h-4 w-4" aria-hidden /> {t('rx.print')}
+            </Link>
+          )}
           {editable && (
             <>
+              {canPrescribe && (
+                <Button variant="ghost" size="sm" icon={<Eye className="h-4 w-4" />} onClick={() => void openPreview()}>
+                  {t('rx.preview')}
+                </Button>
+              )}
               <Button variant="ghost" size="sm" className="text-danger" onClick={() => setConfirm('cancel')}>
                 {t('consultation.cancel')}
               </Button>
@@ -342,6 +445,24 @@ export function ConsultationPage() {
                 onNotes={(examinationNotes) => update({ examinationNotes })}
               />
               <DiagnosisSection rows={draft.diagnoses} onChange={(diagnoses) => update({ diagnoses })} error={fieldErrors.diagnoses} />
+              {canPrescribe && (
+                <Section id="sec-rx" title={t('rx.section_title')} error={fieldErrors['prescription.items']}>
+                  <PrescriptionBuilder
+                    value={draft.rx}
+                    onChange={(rx) => update({ rx })}
+                    errors={fieldErrors}
+                    toolbar={
+                      <>
+                        <TemplateApplyMenu onApply={applyTemplate} />
+                        <SaveTemplateButton content={templateContent} />
+                        <Button size="sm" variant="secondary" icon={<Copy className="h-4 w-4" />} onClick={() => void copyPrevious()}>
+                          {t('rx.copy_previous')}
+                        </Button>
+                      </>
+                    }
+                  />
+                </Section>
+              )}
               <InvestigationsSection rows={draft.investigations} onChange={(investigations) => update({ investigations })} />
               <Section id="sec-notes" title={t('consultation.notes')}>
                 <Textarea rows={3} value={draft.clinicalNotes} maxLength={4000} onChange={(e) => update({ clinicalNotes: e.target.value })} aria-describedby="notes-hint" />
@@ -359,12 +480,25 @@ export function ConsultationPage() {
                 error={fieldErrors.followUpDate}
               />
               <p className="text-center text-2xs text-ink-subtle">
-                {t('consultation.shortcut_hint')} · {t('consultation.prescription_next')}
+                {t('consultation.shortcut_hint')}
               </p>
             </>
           ) : (
             <>
               <ConsultationView c={c} />
+              {c.prescription && c.status === 'FINALIZED' && (
+                <section className="card p-4 sm:p-5">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <h2 className="text-sm font-semibold text-ink">{t('rx.section_title')}</h2>
+                    {c.prescription.rxNumber && <span className="font-mono text-xs text-ink-muted">{c.prescription.rxNumber}</span>}
+                    {c.prescription.versionNumber > 1 && <Badge tone="info">{t('rx.version_n', { n: c.prescription.versionNumber })}</Badge>}
+                    <Link to={`/prescriptions/${c.prescription.id}`} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-primary-700 hover:underline">
+                      {t('rx.open')} <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                    </Link>
+                  </div>
+                  <RxItemsView items={c.prescription.items} advice={c.prescription.advice} />
+                </section>
+              )}
               {c.status === 'FINALIZED' && can(PERMISSIONS.CONSULTATIONS_UPDATE) && c.doctor.id === user?.doctorId && (
                 <section className="card p-4 sm:p-5">
                   <h2 className="mb-2 text-sm font-semibold text-ink">{t('consultation.add_addendum')}</h2>
@@ -403,6 +537,11 @@ export function ConsultationPage() {
             <p>
               <span className="text-ink-subtle">{t('consultation.investigations')}:</span> {draft.investigations.map((x) => x.name).join(', ') || '—'}
             </p>
+            {canPrescribe && (
+              <p>
+                <span className="text-ink-subtle">{t('rx.medicines')}:</span> {draft.rx.items.map((x) => [x.name, x.strength, x.frequency].filter(Boolean).join(' ')).join(', ') || '—'}
+              </p>
+            )}
             <p>
               <span className="text-ink-subtle">{t('consultation.follow_up')}:</span> {draft.followUpDate || t('consultation.no_follow_up')}
             </p>

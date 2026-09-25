@@ -141,3 +141,8 @@ Legend: ✅ granted by default · — not granted (can be enabled) · 🔒 can n
 | Private clinical notes are returned only with `clinical_notes.view`; the patient context (allergies, conditions) only with `patients.view_medical`. | `ConsultationsService` |
 | Global catalogue entries and vital fields are changed only with `system.manage`; chamber entries only by that chamber. | `CatalogService`, `VitalDefinitionsService` |
 | Medical values in audit logs and the patient timeline are redacted for viewers without `patients.view_medical`. | `AuditController`, `PatientTimelineService` |
+| Only the prescribing doctor can revise, finalize or discard a revision (`NOT_PRESCRIPTION_DOCTOR`); issued prescription versions are immutable (API + database triggers). | `PrescriptionsService`, DB triggers |
+| Users without `prescriptions.create` (assistants, managers) only see issued prescriptions — never drafts or cancelled ones. | `PrescriptionsService` |
+| Global medicines are changed only with `medicines.manage_global`; deactivating a medicine additionally needs `medicines.delete`. | `MedicinesService` |
+| Personal templates are visible only to their doctor; shared templates to the whole chamber. | `TemplatesService` |
+| The public verification endpoint returns no patient data and is rate limited. | `PublicPrescriptionsController` |

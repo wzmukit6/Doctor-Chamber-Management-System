@@ -27,6 +27,11 @@ const ConsultationsPage = lazy(() => import('@/features/consultations/Consultati
 const ConsultationPage = lazy(() => import('@/features/consultations/ConsultationPage').then((m) => ({ default: m.ConsultationPage })));
 const CataloguePage = lazy(() => import('@/features/catalog/CataloguePage').then((m) => ({ default: m.CataloguePage })));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const PrescriptionsPage = lazy(() => import('@/features/prescriptions/PrescriptionsPage').then((m) => ({ default: m.PrescriptionsPage })));
+const PrescriptionDetailPage = lazy(() => import('@/features/prescriptions/PrescriptionDetailPage').then((m) => ({ default: m.PrescriptionDetailPage })));
+const PrescriptionPrintPage = lazy(() => import('@/features/prescriptions/PrescriptionPrintPage').then((m) => ({ default: m.PrescriptionPrintPage })));
+const VerifyPrescriptionPage = lazy(() => import('@/features/prescriptions/VerifyPrescriptionPage').then((m) => ({ default: m.VerifyPrescriptionPage })));
+const MedicinesPage = lazy(() => import('@/features/medicines/MedicinesPage').then((m) => ({ default: m.MedicinesPage })));
 const ProfilePage = lazy(() => import('@/features/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 
 function FullPageSpinner() {
@@ -54,6 +59,28 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      {/* Public QR verification (spec §14) — no sign-in. */}
+      <Route
+        path="/verify/:token"
+        element={
+          <Suspense fallback={<FullPageSpinner />}>
+            <VerifyPrescriptionPage />
+          </Suspense>
+        }
+      />
+      {/* Print view renders without the app shell. */}
+      <Route
+        path="/prescriptions/:id/print"
+        element={
+          <RequireAuth>
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.PRESCRIPTIONS_PRINT}>
+                <PrescriptionPrintPage />
+              </RequirePermission>
+            </Suspense>
+          </RequireAuth>
+        }
+      />
       <Route
         element={
           <RequireAuth>
@@ -148,6 +175,36 @@ export function App() {
             <Suspense fallback={<FullPageSpinner />}>
               <RequirePermission permission={PERMISSIONS.CONSULTATIONS_VIEW}>
                 <ConsultationPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="prescriptions"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.PRESCRIPTIONS_VIEW}>
+                <PrescriptionsPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="prescriptions/:id"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.PRESCRIPTIONS_VIEW}>
+                <PrescriptionDetailPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="medicines"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.MEDICINES_VIEW}>
+                <MedicinesPage />
               </RequirePermission>
             </Suspense>
           }

@@ -50,14 +50,19 @@ erDiagram
     consultations ||--o{ consultation_diagnoses : diagnoses
     consultations ||--o{ consultation_investigations : orders
     consultations ||--o{ consultation_notes : "private notes & addenda"
-    consultations ||--o| prescriptions : "(planned)"
-    prescriptions ||--o{ prescription_versions : "(planned)"
-    prescription_versions ||--o{ prescription_items : "(planned)"
-    medicines ||--o{ prescription_items : "(planned)"
+    consultations ||--o| prescriptions : "prescription"
+    prescriptions ||--o{ prescription_versions : "immutable versions"
+    prescription_versions ||--o{ prescription_items : medicines
+    medicines ||--o{ prescription_items : "catalogue"
+    chambers ||--o{ medicines : "chamber medicines (NULL = global)"
+    doctors ||--o{ doctor_medicine_favorites : favourites
+    medicines ||--o{ doctor_medicine_favorites : ""
+    chambers ||--|| prescription_sequences : "Rx numbers"
     diagnoses ||--o{ consultation_diagnoses : "catalogue"
     investigations ||--o{ consultation_investigations : "catalogue"
-    doctors ||--o{ prescription_templates : "(planned)"
-    prescription_templates ||--o{ prescription_template_items : "(planned)"
+    chambers ||--o{ prescription_templates : "shared templates"
+    doctors ||--o{ prescription_templates : "personal templates"
+    prescription_templates ||--o{ prescription_template_items : medicines
     consultations ||--o| billing : "(planned)"
     billing ||--o{ payments : "(planned)"
     patients ||--o{ attachments : "(planned)"
@@ -210,6 +215,51 @@ erDiagram
       bool on_hold
       timestamptz called_at
     }
+    prescriptions {
+      uuid id PK
+      uuid consultation_id UK
+      varchar rx_number "RX-000145, unique per chamber"
+      enum status "DRAFT|FINALIZED|REVISED|CANCELLED"
+      int current_version
+      timestamptz issued_at
+      int version
+    }
+    prescription_versions {
+      uuid id PK
+      uuid prescription_id FK
+      int version_number
+      enum status "DRAFT|FINALIZED|SUPERSEDED|DISCARDED"
+      varchar advice
+      varchar revision_reason
+      timestamptz finalized_at
+      timestamptz superseded_at
+      varchar verification_token UK
+      varchar content_hash "SHA-256"
+    }
+    prescription_items {
+      uuid id PK
+      uuid version_id FK
+      uuid medicine_id FK "nullable (free text)"
+      varchar name "snapshot"
+      varchar strength
+      enum form
+      varchar dose
+      varchar frequency "e.g. 1+0+1"
+      int duration_value
+      enum duration_unit
+      int quantity
+      enum meal_instruction
+    }
+    medicines {
+      uuid id PK
+      uuid chamber_id "NULL = global"
+      varchar generic_name
+      varchar brand_name
+      enum form
+      varchar strength
+      text_array common_frequencies
+      bool is_active
+    }
     settings {
       uuid id PK
       enum scope "PLATFORM|ORGANIZATION|CHAMBER|USER"
@@ -242,9 +292,17 @@ erDiagram
 | `*_scope_name_unique`, `diagnoses_scope_code_unique` (expression indexes) | no duplicate catalogue names/codes per scope (global or chamber) |
 | `diagnoses_name_trgm`, `investigations_name_trgm`, `complaints_name_trgm` | typo-tolerant catalogue search |
 | `patients_blood_group_valid`, `patients_email_lowercase`, `patients_dob_after_1900` CHECKs | data integrity |
+| `prescription_versions_immutable` trigger | issued versions never change; the only permitted update is FINALIZED → SUPERSEDED (with `superseded_at`); versions are never deleted |
+| `prescription_items_protect` trigger | items can only be written while their version is a DRAFT |
+| `prescriptions_protect` trigger | prescriptions are never deleted; Rx number, patient, doctor and issue date never change; no transition back to DRAFT |
+| `prescription_versions_one_finalized`, `prescription_versions_one_draft` (partial unique) | exactly one current version and at most one open draft per prescription |
+| `prescriptions (chamber_id, rx_number)` unique + `prescription_sequences` | race-free Rx numbers per chamber |
+| `prescription_versions_finalized_fields`, `prescription_versions_revision_reason`, `prescriptions_issued_fields` CHECKs | issued versions always carry finalizer, token and hash; revisions always carry a reason |
+| `medicines_scope_unique` (expression index), `medicines_generic_trgm`, `medicines_brand_trgm` | no duplicate medicine per scope; typo-tolerant medicine search |
+| `prescription_templates_owner_name_unique` | template names unique per doctor / per chamber for shared templates |
 
 ## Planned (next phases)
 
-* **Prescriptions** — `prescriptions` (RX number, state machine DRAFT → FINALIZED → REVISED →
-  SUPERSEDED), immutable `prescription_versions` + `prescription_items`, unique constraint
-  preventing two finalized versions for the same revision.
+
+* **Billing** (Phase 6) — fees per visit type, invoices, payments, receipts and dues linked to consultations.
+* **Attachments** — patient documents and report files.

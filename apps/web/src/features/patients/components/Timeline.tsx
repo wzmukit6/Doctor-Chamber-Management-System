@@ -11,7 +11,7 @@ import { errorMessage } from '@/utils/errors';
 import { formatDate, formatDateTime } from '@/utils/format';
 
 /** Types with data today; the rest are shown disabled until their module ships. */
-const AVAILABLE: TimelineType[] = ['registration', 'record', 'appointment', 'consultation', 'diagnosis', 'investigation', 'follow_up'];
+const AVAILABLE: TimelineType[] = ['registration', 'record', 'appointment', 'consultation', 'diagnosis', 'prescription', 'investigation', 'follow_up'];
 
 const ICONS: Record<TimelineType, typeof Activity> = {
   registration: UserPlus,
@@ -44,6 +44,12 @@ function EventItem({ event }: { event: TimelineEventDto }) {
       {event.details.consultationId && event.type === 'consultation' && (
         <Link to={`/consultations/${event.details.consultationId}`} className="mt-0.5 inline-block text-xs font-medium text-primary-700 hover:underline">
           {t('consultation.open')}
+        </Link>
+      )}
+      {event.type === 'prescription' && event.details.medicines && <p className="mt-0.5 text-xs text-ink-muted">{event.details.medicines}</p>}
+      {event.type === 'prescription' && event.details.prescriptionId && (
+        <Link to={`/prescriptions/${event.details.prescriptionId}`} className="mt-0.5 inline-block text-xs font-medium text-primary-700 hover:underline">
+          {t('rx.open')}
         </Link>
       )}
       {event.type === 'appointment' && event.details.visitType && (

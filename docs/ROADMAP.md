@@ -9,10 +9,42 @@ ships working backend, frontend, tests and documentation before the next one sta
 | 2. Patient management | Registration, fast/fuzzy search, profile (demographics + medical info), timeline, Ctrl+K patient search | ✅ Done |
 | 3. Appointments & queue | Calendar (day/week/month), booking with conflict detection, check-in, live token queue | ✅ Done |
 | 4. Clinical workflow | Consultation, configurable vitals, complaints, diagnosis (ICD-ready), investigations, clinical notes | ✅ Done |
-| 5. Prescriptions | Medicine database, smart builder, templates, finalization, versioning, A4 PDF, QR verification | ⏭ Next |
-| 6. Billing | Fees, payments, receipts, dues, financial reports | Planned |
+| 5. Prescriptions | Medicine database, smart builder, templates, finalization, versioning, A4 PDF, QR verification | ✅ Done |
+| 6. Billing | Fees, payments, receipts, dues, financial reports | ⏭ Next |
 | 7. Reports & administration | Dashboard analytics, reports, exports (PDF/CSV/Excel), settings | Planned |
 | 8. Hardening | Security audit, full RBAC matrix tests, performance, backups/restore, deployment | Planned |
+
+## Phase 5 — delivered
+
+* **Medicine database**: 89 global generic medicines (no brand names, so no manufacturer is
+  misattributed) with form, strength, category, route, default dose, common frequencies and
+  durations; chambers add their own medicines and brands; typo-tolerant search over brand,
+  generic and keywords; deactivate instead of delete; doctor favourites.
+* **Smart prescription builder** inside the consultation: medicine autocomplete (Alt+M), one-click
+  favourites / frequently / recently prescribed, dose-pattern chips (1+0+1 …), meal timing,
+  duration, **automatic quantity** for tablets and capsules (overridable), route, timing and
+  instructions, drag-and-drop or keyboard reordering, exact-duplicate blocking and a warning for the
+  same generic twice, advice with the chamber's default text, **copy previous prescription**.
+* **Templates** (personal or chamber-shared) with diagnoses, investigations, medicines, advice and
+  follow-up instructions; apply in one click (everything stays editable) or save the current visit.
+* **Finalization**: the prescription is issued together with the consultation in one transaction —
+  per-chamber Rx number (`RX-000145`), verification token and SHA-256 content hash.
+* **Versioning & state machine** (DRAFT → FINALIZED → REVISED; versions FINALIZED → SUPERSEDED):
+  finalized versions can never be edited (API and database triggers). The prescribing doctor revises
+  with a mandatory reason; the revision draft autosaves and is finalized or discarded; history shows
+  every version with who/when/why. All steps are audited.
+* **Printing**: dedicated A4/A5 print view (header, patient section, clinical summary, Rx, advice,
+  follow-up, signature line, QR code, footer) with print CSS; "Save as PDF" from the print dialog
+  (keeps Bangla text intact). Drafts print with a "not valid" watermark; printing is audited.
+* **QR verification**: public page `/verify/:token` shows valid/superseded status, Rx number, issue
+  date, doctor and chamber — never patient information.
+* **Access**: assistants and managers see issued prescriptions only and can print; only the
+  prescribing doctor revises; other chambers get 404.
+* **Settings → Prescriptions**: page size, printed label language (English/Bangla), medicine name
+  format, QR/clinical section/signature toggles, header note, default advice, footer.
+* Prescriptions page (search, filters, print), prescription detail with version history, Medicines
+  page, patient timeline events for issued and revised prescriptions, "Recent prescriptions" on the
+  doctor and assistant dashboards.
 
 ## Phase 4 — delivered
 

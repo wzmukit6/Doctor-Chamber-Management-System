@@ -88,6 +88,12 @@ src/
     users/ roles/ organizations/ chambers/
     audit/                    AuditService (hash chain) + scoped read API + chain verification
     notifications/            provider interface (console/in-memory now; SMTP/SMS later)
+    patients/                 registration, search, medical info, pluggable timeline providers
+    doctors/ appointments/    schedules, booking, status machine, token queue
+    catalog/ consultations/   clinical master data, consultation workflow
+    prescriptions/            medicines, prescriptions (versions, revisions, print, public
+                              verification), templates; prescription-writer shared with consultations
+    settings/                 chamber settings (appointments, prescriptions)
     health/
 prisma/                       schema, migrations (with hand-written constraints/triggers), seed
 test/                         integration tests against a throwaway database per run

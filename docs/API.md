@@ -146,8 +146,33 @@ Dates (`YYYY-MM-DD`) and times (`HH:MM`) are chamber-local; returned instants ar
 | GET | `/vital-definitions` | signed in | effective fields for the chamber |
 | POST / PATCH | `/vital-definitions`, `/vital-definitions/:id` | `settings.manage` | global fields need `system.manage` |
 
+## Phase 5 endpoints — prescriptions
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| GET | `/medicines` | `medicines.view` | `q` (brand/generic/keywords, typo tolerant), `form`, `scope` (`all`/`global`/`chamber`/`favorites`), `includeInactive`, `limit` |
+| GET | `/medicines/suggestions` | `medicines.view` | `{ favorites, frequent, recent }` for the builder |
+| GET | `/medicines/:id` | `medicines.view` | |
+| POST / PATCH | `/medicines`, `/medicines/:id` | `medicines.create` / `medicines.update` | `global: true` or editing global entries needs `medicines.manage_global` |
+| POST | `/medicines/:id/status` | `medicines.update` (+ `medicines.delete` to deactivate) | `{ isActive }` — never deleted |
+| PUT / DELETE | `/medicines/:id/favorite` | `medicines.view` + `prescriptions.create` (doctors) | personal favourites |
+| PUT | `/consultations/:id` | (Phase 4) | optional `prescription: { items[], advice }` saves the version-1 draft; exact duplicate medicines → 422 `validation.duplicate_medicine` |
+| POST | `/consultations/:id/finalize` | (Phase 4) | also issues the prescription (Rx number, verification token, content hash) in the same transaction |
+| GET | `/prescriptions` | `prescriptions.view` | `q` (Rx number, patient name/ID), `patientId`, `doctorId`, `status`, `from`, `to`, paging; drafts only for prescribers |
+| GET | `/prescriptions/latest` | `prescriptions.view` | `patientId`, `excludeConsultationId?` — "copy previous prescription" |
+| GET | `/prescriptions/:id` | `prescriptions.view` | with version history; draft versions only for prescribers |
+| GET | `/prescriptions/:id/print` | `prescriptions.print` | `version?` — everything for the A4/A5 print view (drafts: preview for prescribers) |
+| POST | `/prescriptions/:id/print-log` | `prescriptions.print` | `{ versionNumber }` — audited as `prescription.printed` |
+| POST | `/prescriptions/:id/revisions` | `prescriptions.revise` + prescribing doctor | `{ reason, version }` → draft version N+1; `REVISION_IN_PROGRESS` if one is open |
+| PUT | `/prescriptions/:id/draft` | `prescriptions.update` + prescribing doctor | `{ items, advice, version }` — revision drafts only; issued versions → `PRESCRIPTION_ALREADY_FINALIZED` |
+| POST | `/prescriptions/:id/finalize` | `prescriptions.finalize` + prescribing doctor | `{ version }` — previous version → SUPERSEDED, prescription → REVISED |
+| POST | `/prescriptions/:id/discard` | `prescriptions.revise` + prescribing doctor | `{ version }` — draft revision → DISCARDED |
+| GET | `/public/prescriptions/verify/:token` | public (rate limited) | status VALID / SUPERSEDED, Rx number, issue date, doctor, chamber — no patient data |
+| GET | `/prescription-templates` | `prescriptions.view` | own personal + chamber-shared templates |
+| POST / PATCH / DELETE | `/prescription-templates`, `/prescription-templates/:id` | `templates.manage` | diagnoses, investigations, medicines, advice, follow-up instructions; `shared`; PATCH needs `version` |
+| GET / PUT | `/settings/prescriptions` | `prescriptions.view` / `settings.manage` | page size, print language, medicine name format, QR, clinical section, signature line, header note, default advice, footer |
+
 ## Planned resources
 
-`/api/prescriptions`,
-`/api/medicines`, `/api/billing`, `/api/reports`,
+`/api/billing`, `/api/reports`,
 `/api/settings` (remaining sections) — delivered phase by phase (see [ROADMAP.md](ROADMAP.md)) with the same conventions.

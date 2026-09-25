@@ -54,13 +54,13 @@ export const NAV_SECTIONS: NavSection[] = [
     key: 'section_clinical',
     items: [
       { key: 'consultations', to: '/consultations', icon: Stethoscope, permissions: [P.CONSULTATIONS_VIEW], available: true },
-      { key: 'prescriptions', to: '/prescriptions', icon: FileText, permissions: [P.PRESCRIPTIONS_VIEW], available: false },
+      { key: 'prescriptions', to: '/prescriptions', icon: FileText, permissions: [P.PRESCRIPTIONS_VIEW], available: true },
     ],
   },
   {
     key: 'section_catalogue',
     items: [
-      { key: 'medicines', to: '/medicines', icon: Pill, permissions: [P.MEDICINES_VIEW], available: false },
+      { key: 'medicines', to: '/medicines', icon: Pill, permissions: [P.MEDICINES_VIEW], available: true },
       { key: 'investigations', to: '/investigations', icon: FlaskConical, permissions: [P.INVESTIGATIONS_VIEW], available: true },
       { key: 'billing', to: '/billing', icon: CreditCard, permissions: [P.BILLING_VIEW], available: false },
       { key: 'reports', to: '/reports', icon: BarChart3, permissions: [P.REPORTS_VIEW], available: false },

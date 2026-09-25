@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { addDays, PERMISSIONS, zonedDate, type RoleKey } from '@chamber/shared';
 import { useAuth } from '@/stores/auth';
-import { appointmentsApi, auditApi, consultationsApi, organizationsApi, chambersApi, patientsApi, queueApi, usersApi } from '@/services/endpoints';
+import { appointmentsApi, auditApi, consultationsApi, organizationsApi, chambersApi, patientsApi, prescriptionsApi, queueApi, usersApi } from '@/services/endpoints';
 import { useChamberTz, useToday } from '@/hooks/useChamber';
 import { BookAppointmentModal } from '@/features/appointments/components/BookAppointmentModal';
 import { PatientLine } from '@/features/patients/components/PatientBits';
@@ -170,8 +170,8 @@ const ROADMAP: { phase: number; key: string; status: 'done' | 'next' | 'planned'
   { phase: 2, key: 'Patient management — registration, search, profile, timeline', status: 'done' },
   { phase: 3, key: 'Appointments & queue', status: 'done' },
   { phase: 4, key: 'Clinical workflow — consultation, vitals, diagnosis', status: 'done' },
-  { phase: 5, key: 'Prescriptions — builder, templates, versioning, PDF', status: 'next' },
-  { phase: 6, key: 'Billing & payments', status: 'planned' },
+  { phase: 5, key: 'Prescriptions — builder, templates, versioning, PDF', status: 'done' },
+  { phase: 6, key: 'Billing & payments', status: 'next' },
   { phase: 7, key: 'Reports, analytics & settings', status: 'planned' },
   { phase: 8, key: 'Hardening & deployment', status: 'planned' },
 ];
@@ -340,6 +340,41 @@ function UpcomingAppointments({ doctorId }: { doctorId?: string }) {
   );
 }
 
+/** Latest issued prescriptions (spec §4 "Recent prescriptions"); one click to print. */
+function RecentPrescriptions({ doctorId }: { doctorId?: string }) {
+  const { t } = useTranslation();
+  const q = useQuery({
+    queryKey: ['prescriptions', 'list', 'recent', doctorId ?? ''],
+    queryFn: () => prescriptionsApi.list({ pageSize: 6, doctorId }),
+  });
+  const rows = (q.data?.items ?? []).filter((p) => p.rxNumber);
+  return (
+    <section className="card" aria-labelledby="recent-rx">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <h2 id="recent-rx" className="text-sm font-semibold text-ink">
+          {t('dashboard.recent_prescriptions')}
+        </h2>
+        <Link to="/prescriptions" className="text-xs font-medium text-primary-700 hover:underline">
+          {t('dashboard.view_all')}
+        </Link>
+      </div>
+      <ul className="divide-y divide-border">
+        {q.isLoading && <li className="p-4"><Skeleton className="h-6 w-2/3" /></li>}
+        {!q.isLoading && rows.length === 0 && <li className="px-4 py-6 text-center text-sm text-ink-muted">{t('rx.empty')}</li>}
+        {rows.map((p) => (
+          <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+            <Link to={`/prescriptions/${p.id}`} className="w-24 shrink-0 font-mono text-xs text-primary-800 hover:underline">
+              {p.rxNumber}
+            </Link>
+            <span className="min-w-0 flex-1 truncate font-medium text-ink">{p.patient.fullName}</span>
+            <span className="hidden text-xs text-ink-subtle sm:inline">{t('rx.medicine_count', { count: p.itemCount })}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => void }) {
   const { t } = useTranslation();
   const { can, user } = useAuth();
@@ -404,9 +439,10 @@ function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => 
           </>
         )}
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {doctor ? <UpcomingAppointments doctorId={user?.doctorId ?? undefined} /> : <UpcomingAppointments />}
         <RecentPatients />
+        {can(PERMISSIONS.PRESCRIPTIONS_VIEW) && <RecentPrescriptions doctorId={doctor ? (user?.doctorId ?? undefined) : undefined} />}
       </div>
       <ActivityAndRoadmap />
       <BookAppointmentModal open={booking} onClose={() => setBooking(false)} />

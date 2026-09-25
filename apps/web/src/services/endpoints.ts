@@ -1,4 +1,15 @@
 import type {
+  MedicineDto,
+  MedicineSuggestionsDto,
+  PrescriptionDto,
+  PrescriptionPrintDto,
+  PrescriptionSettings,
+  PrescriptionSummaryDto,
+  PrescriptionTemplateDto,
+  PrescriptionVerificationDto,
+  PrescriptionVersionDto,
+  PrescriptionItemInput,
+  UpdatePrescriptionSettingsInput,
   CatalogItemDto,
   ConsultationContextDto,
   ConsultationDto,
@@ -148,6 +159,8 @@ export const queueApi = {
 export const settingsApi = {
   appointments: () => api.get<AppointmentSettings & { version: number }>('/settings/appointments'),
   updateAppointments: (input: UpdateAppointmentSettingsInput) => api.put<AppointmentSettings & { version: number }>('/settings/appointments', input),
+  prescriptions: () => api.get<PrescriptionSettings & { version: number }>('/settings/prescriptions'),
+  updatePrescriptions: (input: UpdatePrescriptionSettingsInput) => api.put<PrescriptionSettings & { version: number }>('/settings/prescriptions', input),
 };
 
 export type CatalogKind = 'diagnoses' | 'investigations' | 'complaints';
@@ -179,4 +192,35 @@ export const consultationsApi = {
   preVitals: (appointmentId: string) => api.get<ConsultationVitalDto[]>(`/appointments/${appointmentId}/vitals`),
   recordVitals: (appointmentId: string, vitals: { definitionId: string; value: string }[]) =>
     api.put<ConsultationVitalDto[]>(`/appointments/${appointmentId}/vitals`, { vitals }),
+};
+
+export const medicinesApi = {
+  search: (params: { q?: string; form?: string; scope?: string; includeInactive?: boolean; limit?: number }) => api.get<MedicineDto[]>('/medicines', params),
+  suggestions: () => api.get<MedicineSuggestionsDto>('/medicines/suggestions'),
+  create: (input: Record<string, unknown>) => api.post<MedicineDto>('/medicines', input),
+  update: (id: string, input: Record<string, unknown>) => api.patch<MedicineDto>(`/medicines/${id}`, input),
+  setStatus: (id: string, isActive: boolean) => api.post<MedicineDto>(`/medicines/${id}/status`, { isActive }),
+  favorite: (id: string, on: boolean) => (on ? api.put<MedicineDto>(`/medicines/${id}/favorite`, {}) : api.delete<MedicineDto>(`/medicines/${id}/favorite`)),
+};
+
+export type LatestPrescription = PrescriptionVersionDto & { rxNumber: string | null; issuedAt: string | null };
+
+export const prescriptionsApi = {
+  list: (params: ListParams) => api.page<PrescriptionSummaryDto>('/prescriptions', params),
+  get: (id: string) => api.get<PrescriptionDto>(`/prescriptions/${id}`),
+  latest: (patientId: string, excludeConsultationId?: string) => api.get<LatestPrescription | null>('/prescriptions/latest', { patientId, excludeConsultationId }),
+  printData: (id: string, version?: number) => api.get<PrescriptionPrintDto>(`/prescriptions/${id}/print`, { version }),
+  logPrint: (id: string, versionNumber: number) => api.post(`/prescriptions/${id}/print-log`, { versionNumber }),
+  revise: (id: string, reason: string, version: number) => api.post<PrescriptionDto>(`/prescriptions/${id}/revisions`, { reason, version }),
+  saveDraft: (id: string, input: { items: PrescriptionItemInput[]; advice: string | null; version: number }) => api.put<PrescriptionDto>(`/prescriptions/${id}/draft`, input),
+  finalize: (id: string, version: number) => api.post<PrescriptionDto>(`/prescriptions/${id}/finalize`, { version }),
+  discard: (id: string, version: number) => api.post<PrescriptionDto>(`/prescriptions/${id}/discard`, { version }),
+  verify: (token: string) => api.get<PrescriptionVerificationDto>(`/public/prescriptions/verify/${encodeURIComponent(token)}`),
+};
+
+export const templatesApi = {
+  list: () => api.get<PrescriptionTemplateDto[]>('/prescription-templates'),
+  create: (input: Record<string, unknown>) => api.post<PrescriptionTemplateDto>('/prescription-templates', input),
+  update: (id: string, input: Record<string, unknown>) => api.patch<PrescriptionTemplateDto>(`/prescription-templates/${id}`, input),
+  remove: (id: string) => api.delete(`/prescription-templates/${id}`),
 };
