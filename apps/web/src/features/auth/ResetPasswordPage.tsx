@@ -8,9 +8,11 @@ import { Button, Field, Input } from '@/components/ui';
 import { authApi } from '@/services/endpoints';
 import { applyServerErrors, errorMessage } from '@/utils/errors';
 import { newPasswordFormSchema, type NewPasswordForm } from './NewPasswordFields';
+import { usePasswordPolicyText } from '@/features/auth/passwordPolicy';
 
 export function ResetPasswordPage() {
   const { t } = useTranslation();
+  const policyText = usePasswordPolicyText();
   const [params] = useSearchParams();
   const token = params.get('token') ?? '';
   const [done, setDone] = useState(false);
@@ -33,7 +35,7 @@ export function ResetPasswordPage() {
   });
 
   return (
-    <AuthLayout title={t('auth.reset_title')} subtitle={!done && token ? t('auth.password_policy') : undefined}>
+    <AuthLayout title={t('auth.reset_title')} subtitle={!done && token ? policyText : undefined}>
       {!token ? (
         <p role="alert" className="text-sm text-danger">
           {t('auth.reset_invalid')}

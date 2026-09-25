@@ -6,6 +6,7 @@ import { passwordSchema } from '@chamber/shared';
 import { Button, Field, Input, useToast } from '@/components/ui';
 import { authApi } from '@/services/endpoints';
 import { applyServerErrors, errorMessage } from '@/utils/errors';
+import { usePasswordPolicyText } from '@/features/auth/passwordPolicy';
 
 const schema = z
   .object({
@@ -19,6 +20,7 @@ type FormValues = z.infer<typeof schema>;
 
 export function ChangePasswordForm({ onDone }: { onDone?: () => void }) {
   const { t } = useTranslation();
+  const policyText = usePasswordPolicyText();
   const toast = useToast();
   const {
     register,
@@ -44,7 +46,7 @@ export function ChangePasswordForm({ onDone }: { onDone?: () => void }) {
       <Field label={t('auth.current_password')} error={errors.currentPassword?.message}>
         <Input type="password" autoComplete="current-password" {...register('currentPassword')} />
       </Field>
-      <Field label={t('auth.new_password')} error={errors.newPassword?.message} hint={t('auth.password_policy')}>
+      <Field label={t('auth.new_password')} error={errors.newPassword?.message} hint={policyText}>
         <Input type="password" autoComplete="new-password" {...register('newPassword')} />
       </Field>
       <Field label={t('auth.confirm_password')} error={errors.confirmPassword?.message}>

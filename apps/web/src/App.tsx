@@ -36,6 +36,7 @@ const BillingPage = lazy(() => import('@/features/billing/BillingPage').then((m)
 const NewInvoicePage = lazy(() => import('@/features/billing/NewInvoicePage').then((m) => ({ default: m.NewInvoicePage })));
 const InvoiceDetailPage = lazy(() => import('@/features/billing/InvoiceDetailPage').then((m) => ({ default: m.InvoiceDetailPage })));
 const InvoicePrintPage = lazy(() => import('@/features/billing/InvoicePrintPage').then((m) => ({ default: m.InvoicePrintPage })));
+const ReportsPage = lazy(() => import('@/features/reports/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const ProfilePage = lazy(() => import('@/features/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 
 function FullPageSpinner() {
@@ -251,6 +252,16 @@ export function App() {
             <Suspense fallback={<FullPageSpinner />}>
               <RequirePermission permission={PERMISSIONS.BILLING_VIEW}>
                 <InvoiceDetailPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="reports"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.REPORTS_VIEW}>
+                <ReportsPage />
               </RequirePermission>
             </Suspense>
           }

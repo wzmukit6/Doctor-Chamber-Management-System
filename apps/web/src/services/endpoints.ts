@@ -1,4 +1,14 @@
 import type {
+  ChamberProfile,
+  DashboardAnalyticsDto,
+  DoctorProfileDto,
+  DoctorSelfProfileInput,
+  PasswordPolicyRules,
+  ReportCatalogEntryDto,
+  ReportResultDto,
+  SecuritySettings,
+  UpdateChamberProfileInput,
+  UpdateSecuritySettingsInput,
   BillingSettings,
   BillingSummaryDto,
   CreateInvoiceInput,
@@ -69,7 +79,7 @@ import type {
   UpdateUserInput,
   UserDto,
 } from '@chamber/shared';
-import { api } from './api';
+import { api, API_BASE, ApiError } from './api';
 
 export type ListParams = Record<string, string | number | boolean | undefined>;
 
@@ -175,6 +185,10 @@ export const settingsApi = {
   prescriptions: () => api.get<PrescriptionSettings & { version: number }>('/settings/prescriptions'),
   updatePrescriptions: (input: UpdatePrescriptionSettingsInput) => api.put<PrescriptionSettings & { version: number }>('/settings/prescriptions', input),
   billing: () => api.get<BillingSettings & { version: number }>('/settings/billing'),
+  chamberProfile: () => api.get<ChamberProfile & { version: number }>('/settings/chamber-profile'),
+  updateChamberProfile: (input: UpdateChamberProfileInput) => api.put<ChamberProfile & { version: number }>('/settings/chamber-profile', input),
+  security: () => api.get<SecuritySettings & { version: number }>('/settings/security'),
+  updateSecurity: (input: UpdateSecuritySettingsInput) => api.put<SecuritySettings & { version: number }>('/settings/security', input),
   updateBilling: (input: UpdateBillingSettingsInput) => api.put<BillingSettings & { version: number }>('/settings/billing', input),
 };
 
@@ -259,6 +273,40 @@ export const feeItemsApi = {
   create: (input: Record<string, unknown>) => api.post<FeeItemDto>('/fee-items', input),
   update: (id: string, input: Record<string, unknown>) => api.patch<FeeItemDto>(`/fee-items/${id}`, input),
   setStatus: (id: string, isActive: boolean) => api.post<FeeItemDto>(`/fee-items/${id}/status`, { isActive }),
+};
+
+export const doctorProfileApi = {
+  get: (doctorId: string) => api.get<DoctorProfileDto>(`/doctors/${doctorId}/profile`),
+  update: (doctorId: string, input: DoctorSelfProfileInput) => api.put<DoctorProfileDto>(`/doctors/${doctorId}/profile`, input),
+};
+
+export const passwordPolicyApi = {
+  get: () => api.get<PasswordPolicyRules>('/auth/password-policy'),
+};
+
+export type ReportParams = { from: string; to: string; doctorId?: string };
+
+export const reportsApi = {
+  catalog: () => api.get<ReportCatalogEntryDto[]>('/reports'),
+  run: (key: string, params: ReportParams) => api.get<ReportResultDto>(`/reports/${key}`, params),
+  dashboard: (days: number) => api.get<DashboardAnalyticsDto>('/reports/dashboard', { days }),
+  /** Downloads a CSV/Excel export (the server audits every export). */
+  download: async (key: string, params: ReportParams & { format: 'csv' | 'xlsx'; lang: string }) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][]);
+    const res = await fetch(`${API_BASE}/reports/${key}/export?${qs}`, { credentials: 'include' });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: { code: string; message: string } } | null;
+      throw new ApiError(res.status, (body?.error?.code ?? 'INTERNAL_ERROR') as never, body?.error?.message ?? 'Export failed');
+    }
+    const blob = await res.blob();
+    const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? `${key}.${params.format}`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
 };
 
 export const doctorFeesApi = {

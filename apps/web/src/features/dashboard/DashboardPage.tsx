@@ -26,6 +26,7 @@ import {
 import { addDays, PERMISSIONS, zonedDate, type RoleKey } from '@chamber/shared';
 import { useAuth } from '@/stores/auth';
 import { useMoney } from '@/features/billing/money';
+import { AnalyticsOverview } from '@/features/reports/AnalyticsOverview';
 import { appointmentsApi, auditApi, consultationsApi, organizationsApi, chambersApi, invoicesApi, patientsApi, prescriptionsApi, queueApi, usersApi } from '@/services/endpoints';
 import { useChamberTz, useToday } from '@/hooks/useChamber';
 import { BookAppointmentModal } from '@/features/appointments/components/BookAppointmentModal';
@@ -159,8 +160,8 @@ const ROADMAP: { phase: number; key: string; status: 'done' | 'next' | 'planned'
   { phase: 4, key: 'Clinical workflow — consultation, vitals, diagnosis', status: 'done' },
   { phase: 5, key: 'Prescriptions — builder, templates, versioning, PDF', status: 'done' },
   { phase: 6, key: 'Billing & payments', status: 'done' },
-  { phase: 7, key: 'Reports, analytics & settings', status: 'next' },
-  { phase: 8, key: 'Hardening & deployment', status: 'planned' },
+  { phase: 7, key: 'Reports, analytics & settings', status: 'done' },
+  { phase: 8, key: 'Hardening & deployment', status: 'next' },
 ];
 
 function Roadmap() {
@@ -173,11 +174,11 @@ function Roadmap() {
       <p className="mt-0.5 text-xs text-ink-muted">{t('dashboard.roadmap_intro')}</p>
       <ol className="mt-3 space-y-2">
         {ROADMAP.map((r) => (
-          <li key={r.phase} className="flex items-center gap-2.5 text-sm">
+          <li key={r.phase} className="flex items-start gap-2.5 text-sm">
             {r.status === 'done' ? (
-              <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
             ) : (
-              <CircleDashed className={clsx('h-4 w-4', r.status === 'next' ? 'text-primary-600' : 'text-ink-subtle')} aria-hidden />
+              <CircleDashed className={clsx('mt-0.5 h-4 w-4 shrink-0', r.status === 'next' ? 'text-primary-600' : 'text-ink-subtle')} aria-hidden />
             )}
             <span className={clsx(r.status === 'planned' ? 'text-ink-muted' : 'text-ink')}>
               {r.phase}. {r.key}
@@ -237,7 +238,7 @@ function SuperAdminDashboard() {
 
 function ManagerDashboard() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const staff = useQuery({ queryKey: ['dash', 'staff'], queryFn: () => usersApi.list({ pageSize: 1, status: 'active' }) });
   const doctors = useQuery({ queryKey: ['dash', 'doctors'], queryFn: () => usersApi.list({ pageSize: 1, role: 'DOCTOR', status: 'active' }) });
   const assistants = useQuery({ queryKey: ['dash', 'assistants'], queryFn: () => usersApi.list({ pageSize: 1, role: 'ASSISTANT', status: 'active' }) });
@@ -272,6 +273,7 @@ function ManagerDashboard() {
         />
         <PaymentsCard />
       </div>
+      {can(PERMISSIONS.REPORTS_VIEW) && <AnalyticsOverview compact only={['appointments', 'revenue']} />}
       <ActivityAndRoadmap />
     </>
   );
@@ -451,6 +453,7 @@ function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => 
         <RecentPatients />
         {can(PERMISSIONS.PRESCRIPTIONS_VIEW) && <RecentPrescriptions doctorId={doctor ? (user?.doctorId ?? undefined) : undefined} />}
       </div>
+      {doctor && can(PERMISSIONS.REPORTS_CLINICAL) && <AnalyticsOverview compact only={['patients', 'diagnoses']} />}
       <ActivityAndRoadmap />
       <BookAppointmentModal open={booking} onClose={() => setBooking(false)} />
     </>

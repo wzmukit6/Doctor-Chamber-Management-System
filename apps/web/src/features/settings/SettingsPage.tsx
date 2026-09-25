@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
@@ -11,35 +11,58 @@ import { useDoctors } from '@/hooks/useChamber';
 import { VitalsSettings } from './VitalsSettings';
 import { PrescriptionSettingsForm } from './PrescriptionSettingsForm';
 import { BillingSettingsForm } from './BillingSettingsForm';
+import { ChamberProfileForm } from './ChamberProfileForm';
+import { DoctorProfileForm } from './DoctorProfileForm';
+import { SecuritySettingsForm } from './SecuritySettingsForm';
 import { errorMessage, translateMessage } from '@/utils/errors';
 
 /** Display order: Saturday first (Bangladesh work week). */
 const WEEK = [6, 0, 1, 2, 3, 4, 5];
 
-/** Settings (spec §34): appointments & tokens, doctor schedules, vitals, prescriptions, billing. */
+/** Settings (spec §34): chamber, doctor, appointments & tokens, schedules, vitals, prescriptions, billing, security. */
+type SettingsTab = 'chamber' | 'doctor' | 'appointments' | 'schedules' | 'vitals' | 'prescriptions' | 'billing' | 'security';
+
 export function SettingsPage() {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<'appointments' | 'schedules' | 'vitals' | 'prescriptions' | 'billing'>('appointments');
+  const { user, can } = useAuth();
+  const inChamber = !!user?.activeMembership.chamber;
+  const tabs: SettingsTab[] = [
+    ...(inChamber ? (['chamber'] as const) : []),
+    ...(inChamber && (user?.doctorId || can(PERMISSIONS.USERS_UPDATE)) ? (['doctor'] as const) : []),
+    ...(inChamber ? (['appointments', 'schedules', 'vitals', 'prescriptions', 'billing'] as const) : []),
+    ...(can(PERMISSIONS.SYSTEM_MANAGE) ? (['security'] as const) : []),
+  ];
+  const [tab, setTab] = useState<SettingsTab>(tabs[0] ?? 'security');
+  const panels: Record<SettingsTab, () => ReactNode> = {
+    chamber: () => <ChamberProfileForm />,
+    doctor: () => <DoctorProfileForm />,
+    appointments: () => <AppointmentSettingsForm />,
+    schedules: () => <DoctorSchedules />,
+    vitals: () => <VitalsSettings />,
+    prescriptions: () => <PrescriptionSettingsForm />,
+    billing: () => <BillingSettingsForm />,
+    security: () => <SecuritySettingsForm />,
+  };
   return (
     <div>
       <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
-      <div className="mb-4 border-b border-border" role="tablist">
+      <div className="mb-4 overflow-x-auto border-b border-border" role="tablist">
         <div className="-mb-px flex gap-1">
-          {(['appointments', 'schedules', 'vitals', 'prescriptions', 'billing'] as const).map((k) => (
+          {tabs.map((k) => (
             <button
               key={k}
               role="tab"
               type="button"
               aria-selected={tab === k}
               onClick={() => setTab(k)}
-              className={clsx('border-b-2 px-3 py-2 text-sm font-medium', tab === k ? 'border-primary-700 text-primary-800' : 'border-transparent text-ink-muted hover:text-ink')}
+              className={clsx('whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium', tab === k ? 'border-primary-700 text-primary-800' : 'border-transparent text-ink-muted hover:text-ink')}
             >
               {t(`settings.tab_${k}`)}
             </button>
           ))}
         </div>
       </div>
-      {tab === 'appointments' ? <AppointmentSettingsForm /> : tab === 'schedules' ? <DoctorSchedules /> : tab === 'vitals' ? <VitalsSettings /> : tab === 'prescriptions' ? <PrescriptionSettingsForm /> : <BillingSettingsForm />}
+      {tabs.includes(tab) ? panels[tab]() : null}
     </div>
   );
 }

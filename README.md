@@ -4,13 +4,15 @@
 consultations, prescriptions, billing and reports for doctors' chambers, with strict role-based
 access control, multi-chamber tenancy and a tamper-evident audit trail.
 
-> The application is delivered phase by phase. **Phases 1–6 are complete**: foundation
+> The application is delivered phase by phase. **Phases 1–7 are complete**: foundation
 > (authentication, users, roles & permissions, organizations/chambers, audit logs), patient
 > management (registration, search, profile, medical history, timeline) and appointments & queue
 > (calendar, doctor schedules, booking with conflict prevention, check-in, live token queue) and the
 > clinical workflow (consultation workspace, vitals, diagnoses, investigations, finalization) and
 > prescriptions (medicine database, smart builder, templates, versioned revisions, A4/A5 print & PDF,
-> QR verification) and billing (bills, payments & refunds ledger, receipts, dues, fee schedule).
+> QR verification) and billing (bills, payments & refunds ledger, receipts, dues, fee schedule) and reports &
+> administration (19 role-scoped reports with CSV/Excel/PDF export, dashboard analytics, chamber,
+> doctor-profile and security settings).
 > See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Documentation

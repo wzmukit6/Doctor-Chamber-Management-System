@@ -113,14 +113,18 @@ export function PrescriptionSheet({ d, qr, issued }: { d: PrescriptionPrintDto; 
 
       {/* Plain <div>s: the global print stylesheet hides <header>, <aside> and <nav>. */}
       <div className="flex items-start justify-between gap-6 border-b-2 border-primary-700 pb-3" style={{ breakInside: 'avoid' }}>
-        <div>
-          <p className="text-[18px] font-bold text-primary-800">{d.doctor.fullName}</p>
-          {d.doctor.qualifications && <p className="font-medium">{d.doctor.qualifications}</p>}
-          {d.doctor.specialty && <p>{d.doctor.specialty}</p>}
-          {d.doctor.registrationNo && <p className="text-[11px] text-neutral-600">{t('print.registration', { no: d.doctor.registrationNo })}</p>}
+        <div className="flex items-start gap-3">
+          {d.chamber.logoDataUrl && <img src={d.chamber.logoDataUrl} alt="" className="max-h-[16mm] max-w-[30mm] object-contain" />}
+          <div>
+            <p className="text-[18px] font-bold text-primary-800">{d.doctor.fullName}</p>
+            {d.doctor.qualifications && <p className="font-medium">{d.doctor.qualifications}</p>}
+            {d.doctor.specialty && <p>{d.doctor.specialty}</p>}
+            {d.doctor.registrationNo && <p className="text-[11px] text-neutral-600">{t('print.registration', { no: d.doctor.registrationNo })}</p>}
+          </div>
         </div>
         <div className="text-right">
           <p className="text-[14px] font-semibold">{d.chamber.name}</p>
+          {d.chamber.tagline && <p className="text-[10.5px] italic text-neutral-600">{d.chamber.tagline}</p>}
           {d.chamber.address && <p className="max-w-[70mm] text-[11px]">{d.chamber.address}</p>}
           {d.chamber.phone && <p className="text-[11px]">{t('print.phone', { phone: d.chamber.phone })}</p>}
           {d.chamber.email && <p className="text-[11px]">{d.chamber.email}</p>}
@@ -260,13 +264,14 @@ export function PrescriptionSheet({ d, qr, issued }: { d: PrescriptionPrintDto; 
         </div>
         {s.showSignatureLine && (
           <div className="min-w-[55mm] text-center">
-            <div className="h-10" />
+            {d.doctor.signatureDataUrl ? <img src={d.doctor.signatureDataUrl} alt={t('print.signature')} className="mx-auto h-10 max-w-[50mm] object-contain" /> : <div className="h-10" />}
             <p className="border-t border-black pt-1 font-medium">{d.doctor.fullName}</p>
             <p className="text-[10px] text-neutral-600">{t('print.signature')}</p>
           </div>
         )}
       </div>
-      {s.footerText && <p className="mt-2 text-center text-[10.5px] text-neutral-600">{s.footerText}</p>}
+      {d.doctor.prescriptionFooter && <p className="mt-2 text-center text-[10.5px] text-neutral-700">{d.doctor.prescriptionFooter}</p>}
+      {s.footerText && <p className="mt-1 text-center text-[10.5px] text-neutral-600">{s.footerText}</p>}
       <p className="mt-1 text-center text-[9px] text-neutral-500">
         {issued && d.version.finalizedAt
           ? t('print.issued_by', { name: d.version.finalizedByName ?? d.doctor.fullName, date: formatDate(d.version.finalizedAt, tz, lang) })

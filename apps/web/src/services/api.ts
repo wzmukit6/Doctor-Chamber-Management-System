@@ -1,6 +1,6 @@
 import type { ApiFailure, ErrorCode, PageMeta } from '@chamber/shared';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+export const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 const CSRF_COOKIE = 'ca_csrf';
 
 export class ApiError extends Error {

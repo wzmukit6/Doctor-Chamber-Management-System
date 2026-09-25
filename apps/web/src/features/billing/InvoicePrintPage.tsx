@@ -66,6 +66,7 @@ export function InvoicePrintPage() {
           </div>
         )}
         <div className="border-b-2 border-primary-700 pb-2 text-center">
+          {d.chamber.logoDataUrl && <img src={d.chamber.logoDataUrl} alt="" className="mx-auto mb-1 max-h-[12mm] max-w-[40mm] object-contain" />}
           <p className="text-[15px] font-bold text-primary-800">{d.chamber.name}</p>
           {d.chamber.address && <p className="text-[10.5px]">{d.chamber.address}</p>}
           <p className="text-[10.5px]">{[d.chamber.phone, d.chamber.email].filter(Boolean).join(' · ')}</p>

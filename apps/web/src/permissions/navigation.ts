@@ -63,7 +63,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { key: 'medicines', to: '/medicines', icon: Pill, permissions: [P.MEDICINES_VIEW], available: true },
       { key: 'investigations', to: '/investigations', icon: FlaskConical, permissions: [P.INVESTIGATIONS_VIEW], available: true },
       { key: 'billing', to: '/billing', icon: CreditCard, permissions: [P.BILLING_VIEW], available: true },
-      { key: 'reports', to: '/reports', icon: BarChart3, permissions: [P.REPORTS_VIEW], available: false },
+      { key: 'reports', to: '/reports', icon: BarChart3, permissions: [P.REPORTS_VIEW], available: true },
     ],
   },
   {

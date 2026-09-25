@@ -193,7 +193,19 @@ Dates (`YYYY-MM-DD`) and times (`HH:MM`) are chamber-local; returned instants ar
 | GET / PUT | `/settings/billing` | `billing.view` / `settings.manage` | currency symbol, enabled methods, mobile/card providers, receipt footer |
 | GET | `/queue`, `/appointments` | (Phase 3) | entries carry `billing: { invoiceId, invoiceNumber, status, due }` for viewers with `billing.view` |
 
+## Phase 7 endpoints — reports & administration
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| GET | `/reports` | `reports.view` | catalogue of the reports the caller may run (`group`, bilingual title, `canExport`, `personal`) |
+| GET | `/reports/dashboard` | `reports.view` | `days` 7–90 (default 30). Each series is `null` when the caller lacks that report group |
+| GET | `/reports/:key` | `reports.view` + the report's group permission (`reports.clinical` / `reports.financial`, some also need `patients.view`, `consultations.view` or `prescriptions.view`) | query `from`, `to` (≤ 366 days), `doctorId?`, `chamberId?` (only for super admins without a chamber). Returns columns, rows (≤ 5,000, `truncated`), summary, chart spec. Doctors are always limited to their own data |
+| GET | `/reports/:key/export` | + `reports.export` | `format=csv\|xlsx`, `lang=en\|bn`. Returns a file download; audited as `report.exported` |
+| GET / PUT | `/settings/chamber-profile` | `chambers.view` / `settings.manage` | `{ logoDataUrl, tagline, openingHours[], hoursNote, version }`. Logo must be PNG/JPEG/WebP ≤ ~300 KB |
+| GET / PUT | `/doctors/:id/profile` | `chambers.view` (own profile, or `users.update`) | `{ qualifications, specialty, registrationNo, bio, signatureDataUrl, prescriptionFooter, version }`; audited |
+| GET / PUT | `/settings/security` | `system.manage` | password policy, session idle/absolute timeouts, lockout threshold/duration; audited |
+| GET | `/auth/password-policy` | public | the password rules currently in force (for forms) |
+
 ## Planned resources
 
-`/api/reports`,
-`/api/settings` (remaining sections) — delivered phase by phase (see [ROADMAP.md](ROADMAP.md)) with the same conventions.
+Hardening-phase additions are delivered (see [ROADMAP.md](ROADMAP.md)) with the same conventions.

@@ -28,6 +28,13 @@
   --info: 29 78 216;
   --info-soft: 219 234 254;
 
+  /* Charts (validated categorical slots 1–2, recessive chrome) */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --chart-grid: #e1e0d9;
+  --chart-axis: #c3c2b7;
+  --chart-muted: #898781;
+
   color-scheme: light;
 }
 

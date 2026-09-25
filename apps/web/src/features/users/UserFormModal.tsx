@@ -15,6 +15,7 @@ import { Button, Field, Input, Modal, Select, Textarea, useToast } from '@/compo
 import { chambersApi, usersApi } from '@/services/endpoints';
 import { useAuth } from '@/stores/auth';
 import { applyServerErrors, errorMessage } from '@/utils/errors';
+import { usePasswordPolicyText } from '@/features/auth/passwordPolicy';
 
 type CreateForm = z.input<typeof createUserSchema>;
 type EditForm = z.input<typeof updateUserSchema>;
@@ -55,6 +56,7 @@ function DoctorProfileFields({ register, errors, prefix }: { register: any; erro
 
 export function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
+  const policyText = usePasswordPolicyText();
   const toast = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -167,7 +169,7 @@ export function CreateUserModal({ open, onClose }: { open: boolean; onClose: () 
               <option value="bn">{t('common.bangla')}</option>
             </Select>
           </Field>
-          <Field label={t('users.initial_password')} error={errors.password?.message} hint={`${t('auth.password_policy')} ${t('users.initial_password_hint')}`} className="sm:col-span-2">
+          <Field label={t('users.initial_password')} error={errors.password?.message} hint={`${policyText} ${t('users.initial_password_hint')}`} className="sm:col-span-2">
             <Input type="password" autoComplete="new-password" {...register('password')} />
           </Field>
         </div>

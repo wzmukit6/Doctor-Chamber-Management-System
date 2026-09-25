@@ -134,6 +134,8 @@ erDiagram
       varchar registration_no
       decimal consultation_fee
       decimal follow_up_fee
+      text signature_data_url
+      varchar prescription_footer
     }
     sessions {
       uuid id PK
@@ -334,6 +336,9 @@ erDiagram
 | `invoices_one_per_appointment` (partial unique, non-void) | one active bill per visit |
 | `invoices (chamber_id, invoice_number)`, `payments (chamber_id, receipt_number)` unique + `billing_sequences` | race-free bill and receipt numbers per chamber |
 | `invoices_open_dues` (partial index on open bills) | fast outstanding-dues queries |
+| `doctors_signature_data_url_valid` CHECK | the signature is only ever an image data URL (PNG/JPEG/WebP) |
+| `consultations_chamber_finalized` (partial index on finalized consultations) | fast clinical reports by chamber and date |
+| `settings` keys `chamber_profile` (CHAMBER) and `security` (PLATFORM) | chamber logo, tagline and opening hours; the platform security policy |
 
 ## Planned (next phases)
 

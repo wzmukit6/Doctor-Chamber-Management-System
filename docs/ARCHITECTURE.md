@@ -94,7 +94,8 @@ src/
     prescriptions/            medicines, prescriptions (versions, revisions, print, public
                               verification), templates; prescription-writer shared with consultations
     billing/                  invoices, payment/refund ledger, fee schedule, collections summary
-    settings/                 chamber settings (appointments, prescriptions, billing)
+    reports/                  report definitions (SQL), scope resolution, CSV/XLSX export, dashboard analytics
+    settings/                 chamber settings (appointments, prescriptions, billing, profile) and platform security policy
     health/
 prisma/                       schema, migrations (with hand-written constraints/triggers), seed
 test/                         integration tests against a throwaway database per run

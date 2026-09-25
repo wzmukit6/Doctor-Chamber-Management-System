@@ -26,7 +26,7 @@ import { errorMessage } from '@/utils/errors';
 import { formatRelative } from '@/utils/format';
 import { Can } from '@/permissions/Can';
 import { CreateUserModal, EditUserModal } from './UserFormModal';
-import { passwordIssues } from '@chamber/shared';
+import { usePasswordPolicyText, usePasswordIssues } from '@/features/auth/passwordPolicy';
 
 type Dialog =
   | { kind: 'status'; user: UserDto }
@@ -36,6 +36,7 @@ type Dialog =
 
 export function UsersPage() {
   const { t } = useTranslation();
+  const policyText = usePasswordPolicyText();
   const toast = useToast();
   const queryClient = useQueryClient();
   const { user: me, can } = useAuth();
@@ -166,7 +167,7 @@ export function UsersPage() {
   ];
 
   const filtered = !!(q || role || status !== 'all' || chamberId);
-  const resetIssues = passwordIssues(newPassword);
+  const resetIssues = usePasswordIssues(newPassword);
 
   return (
     <div>
@@ -285,7 +286,7 @@ export function UsersPage() {
       >
         <Field
           label={t('auth.new_password')}
-          hint={t('auth.password_policy')}
+          hint={policyText}
           error={newPassword && resetIssues.length ? resetIssues[0] : undefined}
         >
           <Input type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />

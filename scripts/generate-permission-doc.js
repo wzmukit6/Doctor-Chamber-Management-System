@@ -60,6 +60,10 @@ md += `
 | Discounts on a new bill need \`billing.update\` (assistants bill standard fees); edits need a reason and can never go below the paid amount; voiding requires that no money is left on the bill. | \`InvoicesService\` |
 | Payments and refunds are append-only; refunds need \`billing.refund\`, a reason, and cannot exceed the net paid amount. Full card numbers are rejected. | \`InvoicesService\`, DB trigger |
 | Bill status on queue/calendar entries is included only for viewers with \`billing.view\`. | \`AppointmentsService\`, \`QueueService\` |
+| Each report needs \`reports.view\` plus its group permission (\`reports.clinical\`, \`reports.financial\`) and, for patient-level lists, the matching view permission. Doctors always see only their own data; super admins without a chamber see all chambers. | \`ReportsService\` |
+| Exports need \`reports.export\` and are audited (\`report.exported\`). | \`ReportsService\` |
+| A doctor profile (signature, footer) can be changed by that doctor or by a user with \`users.update\` in the same chamber. The signature is printed only on issued prescriptions. | \`DoctorsService\`, \`PrescriptionsService\` |
+| The platform security policy (password rules, session timeouts, lockout) needs \`system.manage\` and applies immediately. | \`SecuritySettingsService\` |
 `;
 
 fs.writeFileSync(path.join(__dirname, '..', 'docs', 'PERMISSIONS.md'), md);
