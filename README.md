@@ -38,7 +38,19 @@ access control, multi-chamber tenancy and a tamper-evident audit trail.
 
 ## Getting started
 
-Prerequisites: Node.js ≥ 20 and PostgreSQL ≥ 14 (or `docker compose up -d db`).
+Prerequisites: Node.js ≥ 20 and either Docker or PostgreSQL ≥ 14.
+
+**Quick start: two commands**
+
+```bash
+npm run setup     # .env, dependencies, database (Docker if available), migrations, demo data
+npm run dev       # API on http://localhost:4000 and web app on http://localhost:5173
+```
+
+Open http://localhost:5173 and sign in with a demo account below. `npm run setup` is safe to
+re-run; pass `-- --no-docker` to use your own PostgreSQL from `apps/api/.env`.
+
+**Step by step (what `setup` does)**
 
 ```bash
 npm install

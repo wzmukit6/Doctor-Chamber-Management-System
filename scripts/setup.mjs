@@ -7,7 +7,8 @@
  *  3. installs dependencies
  *  4. starts PostgreSQL with Docker (docker compose up -d db) when Docker is
  *     available — otherwise uses the PostgreSQL in DATABASE_URL
- *  5. builds the shared package, applies migrations, loads demo data
+ *  5. generates the Prisma client, builds the shared package, applies
+ *     migrations and loads demo data
  *
  *     (pass --no-docker to always use your own PostgreSQL)
  * Safe to run again: nothing is deleted, migrations and the seed are idempotent.
@@ -65,6 +66,9 @@ if (hasDocker) {
 
 step('Building the shared package');
 if (!run('npm', ['run', 'build:shared'])) fail('build:shared failed');
+
+step('Generating the database client (prisma generate)');
+if (!run('npx', ['prisma', 'generate'], { cwd: join(root, 'apps/api') })) fail('prisma generate failed');
 
 step('Creating tables (prisma migrate deploy)');
 if (!run('npx', ['prisma', 'migrate', 'deploy'], { cwd: join(root, 'apps/api') }))
