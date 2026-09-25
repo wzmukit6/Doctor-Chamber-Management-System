@@ -26,6 +26,8 @@ environments.
 | 401 | `UNAUTHENTICATED`, `INVALID_CREDENTIALS`, `SESSION_EXPIRED` |
 | 403 | `FORBIDDEN`, `CSRF_INVALID`, `ACCOUNT_INACTIVE`, `ROLE_NOT_MANAGEABLE`, `CANNOT_MODIFY_SELF`, `GRANT_NOT_ALLOWED` |
 | 404 | `NOT_FOUND` (also returned for records in another chamber) |
+| 409 (appointments) | `APPOINTMENT_CONFLICT`, `OUTSIDE_SCHEDULE`, `DAILY_LIMIT_REACHED` — `error.data = { issues, overridable, conflicting }`; resend with `allowOverbook: true` when `overridable`. `INVALID_STATUS_TRANSITION` for actions not allowed in the current status |
+| 403 (appointments) | `NOT_APPOINTMENT_DOCTOR` — only the appointment's doctor may start/complete/return a consultation or call from their queue |
 | 409 (patients) | `POSSIBLE_DUPLICATE` — `error.data.candidates` lists matching patients; resend with `allowDuplicate: true` to confirm |
 | 409 | `DUPLICATE`, `CONFLICT`, `STALE_VERSION` |
 | 415 | body is not `application/json` |
@@ -100,8 +102,30 @@ Every non-GET request must send header `X-CSRF-Token: <ca_csrf value>`.
 | DELETE | `/patients/:id/allergies/:allergyId` | `patients.update_medical` + `patients.view_medical` | `{ reason }`, soft delete |
 | DELETE | `/patients/:id` | `patients.delete` | `{ reason }`, archive (soft delete) |
 
+## Phase 3 endpoints — appointments, queue, schedules
+
+Dates (`YYYY-MM-DD`) and times (`HH:MM`) are chamber-local; returned instants are ISO-8601 UTC.
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| GET | `/doctors` | `appointments.view` | active doctors of the chamber with weekly schedule, slot length, daily limit |
+| PUT | `/doctors/:id/schedule` | `schedules.manage` | `{ windows: [{ weekday, startTime, endTime }], slotMinutes?, maxDailyPatients? }`; overlapping windows rejected |
+| GET | `/settings/appointments` | `appointments.view` | slot length, daily limit, token scope/prefix, auto-queue |
+| PUT | `/settings/appointments` | `settings.manage` | optimistic locking (`version`) |
+| GET | `/appointments` | `appointments.view` | `from`, `to` (≤ 62 days; ≤ 5 years with `patientId`), `doctorId`, `patientId`, `status` (comma-separated) |
+| GET | `/appointments/availability` | `appointments.view` | `doctorId`, `date`, `excludeAppointmentId?` → slots with `available` / `past` |
+| GET | `/appointments/:id` | `appointments.view` | includes status history |
+| POST | `/appointments` | `appointments.create` | `{ patientId, doctorId, date, time, durationMinutes?, visitType, reason?, notes?, checkInNow?, allowOverbook? }` |
+| POST | `/appointments/:id/reschedule` | `appointments.update` | BOOKED/CONFIRMED only; `{ date, time, doctorId?, durationMinutes?, reason?, allowOverbook?, version }` |
+| PATCH | `/appointments/:id` | `appointments.update` | visit type, reason, notes |
+| POST | `/appointments/:id/actions/:action` | per action | `confirm` (appointments.update), `check-in` / `send-to-queue` / `complete` / `return-to-queue` (queue.manage), `start` (consultations.create + own doctor), `cancel` (appointments.cancel, `reason` required), `no-show` (appointments.update) |
+| GET | `/queue` | `queue.view` | `date?` (default today), `doctorId?` → ordered entries + summary |
+| POST | `/queue/call-next` | `queue.manage` | `{ doctorId }` → next waiting, not-held patient by token, or `null` |
+| POST | `/queue/:appointmentId/call` | `queue.manage` | call / call again |
+| POST | `/queue/:appointmentId/hold` · `/resume` | `queue.manage` | |
+
 ## Planned resources
 
-`/api/appointments`, `/api/queue`, `/api/consultations`, `/api/prescriptions`,
+`/api/consultations`, `/api/prescriptions`,
 `/api/medicines`, `/api/diagnoses`, `/api/investigations`, `/api/billing`, `/api/reports`,
-`/api/settings` — delivered phase by phase (see [ROADMAP.md](ROADMAP.md)) with the same conventions.
+`/api/settings` (remaining sections) — delivered phase by phase (see [ROADMAP.md](ROADMAP.md)) with the same conventions.

@@ -4,9 +4,10 @@
 consultations, prescriptions, billing and reports for doctors' chambers, with strict role-based
 access control, multi-chamber tenancy and a tamper-evident audit trail.
 
-> The application is delivered phase by phase. **Phases 1–2 are complete**: foundation
-> (authentication, users, roles & permissions, organizations/chambers, audit logs) and patient
-> management (registration, search, profile, medical history, timeline).
+> The application is delivered phase by phase. **Phases 1–3 are complete**: foundation
+> (authentication, users, roles & permissions, organizations/chambers, audit logs), patient
+> management (registration, search, profile, medical history, timeline) and appointments & queue
+> (calendar, doctor schedules, booking with conflict prevention, check-in, live token queue).
 > See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Documentation
@@ -54,6 +55,8 @@ All use the password `Demo@12345`. Demo data contains no real patient informatio
 
 The second chamber exists to demonstrate tenant isolation: Dhanmondi staff cannot see Uttara data.
 Both chambers have fictional demo patients (phones `01700000100`–`…111` in Dhanmondi).
+Running `npm run db:seed` also creates a live-looking queue for Dr. Demo Rahman around the current
+time (finished visits, a patient with the doctor, patients waiting) if today has no appointments yet.
 
 ## Scripts
 

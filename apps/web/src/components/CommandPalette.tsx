@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { CornerDownLeft, Loader2, Search, UserPlus, UserRound } from 'lucide-react';
+import { CalendarPlus, CornerDownLeft, ListOrdered, Loader2, Search, UserPlus, UserRound } from 'lucide-react';
 import clsx from 'clsx';
 import { PERMISSIONS } from '@chamber/shared';
 import { useAuth } from '@/stores/auth';
@@ -52,9 +52,17 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       icon: UserRound,
       run: () => navigate(`/patients/${p.id}`),
     }));
-    const actions: Command[] = can(PERMISSIONS.PATIENTS_CREATE)
-      ? [{ id: 'action:new-patient', label: t('command.new_patient'), group: t('command.actions'), icon: UserPlus, run: () => navigate('/patients/new') }]
-      : [];
+    const actions: Command[] = [
+      ...(can(PERMISSIONS.PATIENTS_CREATE)
+        ? [{ id: 'action:new-patient', label: t('command.new_patient'), group: t('command.actions'), icon: UserPlus, run: () => navigate('/patients/new') }]
+        : []),
+      ...(can(PERMISSIONS.APPOINTMENTS_CREATE)
+        ? [{ id: 'action:new-appointment', label: t('command.new_appointment'), group: t('command.actions'), icon: CalendarPlus, run: () => navigate('/appointments?new=1') }]
+        : []),
+      ...(can(PERMISSIONS.QUEUE_VIEW)
+        ? [{ id: 'action:queue', label: t('command.open_queue'), group: t('command.actions'), icon: ListOrdered, run: () => navigate('/queue') }]
+        : []),
+    ];
     const nav: Command[] = [
       ...visibleSections(canAny)
         .flatMap((s) => s.items)

@@ -46,8 +46,8 @@ export const NAV_SECTIONS: NavSection[] = [
     key: 'section_front_desk',
     items: [
       { key: 'patients', to: '/patients', icon: UserRound, permissions: [P.PATIENTS_VIEW], available: true },
-      { key: 'appointments', to: '/appointments', icon: CalendarDays, permissions: [P.APPOINTMENTS_VIEW], available: false },
-      { key: 'queue', to: '/queue', icon: ListOrdered, permissions: [P.QUEUE_VIEW], available: false },
+      { key: 'appointments', to: '/appointments', icon: CalendarDays, permissions: [P.APPOINTMENTS_VIEW], available: true },
+      { key: 'queue', to: '/queue', icon: ListOrdered, permissions: [P.QUEUE_VIEW], available: true },
     ],
   },
   {
@@ -73,7 +73,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { key: 'roles', to: '/roles', icon: ShieldCheck, permissions: [P.ROLES_VIEW], available: true },
       { key: 'organizations', to: '/organizations', icon: Network, permissions: [P.ORGANIZATIONS_VIEW], available: true },
       { key: 'chambers', to: '/chambers', icon: Building2, permissions: [P.CHAMBERS_VIEW], available: true },
-      { key: 'settings', to: '/settings', icon: Settings, permissions: [P.SETTINGS_VIEW], available: false },
+      { key: 'settings', to: '/settings', icon: Settings, permissions: [P.SETTINGS_VIEW], available: true },
       { key: 'audit_logs', to: '/audit-logs', icon: ScrollText, permissions: [P.AUDIT_LOGS_VIEW], available: true },
     ],
   },

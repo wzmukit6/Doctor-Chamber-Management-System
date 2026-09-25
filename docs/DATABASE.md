@@ -36,10 +36,12 @@ erDiagram
     patients ||--o| patient_medical_histories : has
     patients ||--o{ patient_recent_views : "recently opened by"
     chambers ||--|| patient_code_sequences : numbers
-    patients ||--o{ appointments : "(planned)"
-    doctors ||--o{ appointments : "(planned)"
-    appointments ||--o{ appointment_status_history : "(planned)"
-    appointments ||--o| queue_tokens : "(planned)"
+    patients ||--o{ appointments : books
+    doctors ||--o{ appointments : sees
+    doctors ||--o{ doctor_schedule_windows : "weekly availability"
+    appointments ||--o{ appointment_status_history : "history"
+    appointments ||--o| queue_tokens : "token"
+    chambers ||--o{ queue_token_sequences : "daily counters"
     appointments ||--o| consultations : "(planned)"
     consultations ||--o{ consultation_vitals : "(planned)"
     consultations ||--o{ consultation_diagnoses : "(planned)"
@@ -183,6 +185,28 @@ erDiagram
       varchar family_history
       int version
     }
+    appointments {
+      uuid id PK
+      uuid chamber_id FK
+      uuid patient_id FK
+      uuid doctor_id FK
+      timestamptz starts_at
+      timestamptz ends_at
+      enum status
+      enum visit_type
+      bool is_overbooked
+      varchar cancelled_reason
+      int version
+    }
+    queue_tokens {
+      uuid id PK
+      uuid appointment_id UK
+      date queue_date
+      varchar scope_key "doctor id or ALL"
+      int token_number
+      bool on_hold
+      timestamptz called_at
+    }
     settings {
       uuid id PK
       enum scope "PLATFORM|ORGANIZATION|CHAMBER|USER"
@@ -206,12 +230,14 @@ erDiagram
 | `patients (chamber_id, patient_code)` unique + `patient_code_sequences` (atomic `INSERT … ON CONFLICT … RETURNING`) | gap-free, race-free patient IDs per chamber |
 | `patients_full_name_trgm`, `patients_phone_search_trgm` (GIN, `pg_trgm`, partial on `deleted_at IS NULL`) | partial / typo-tolerant search |
 | `patients (chamber_id, phone_search / date_of_birth / email / created_at)` | exact lookups, duplicate checks, date filters |
+| `appointments_no_doctor_overlap` (EXCLUDE USING gist on `doctor_id` + `tstzrange`, active and not overbooked) | a doctor can never be double-booked, even under concurrent requests |
+| `appointments_no_patient_overlap` (EXCLUDE USING gist on `patient_id` + `tstzrange`, active) | a patient can never be in two appointments at once |
+| `queue_tokens (chamber_id, scope_key, queue_date, token_number)` unique + `queue_token_sequences` | race-free daily token numbers |
+| `appointments_cancel_reason`, `appointments_ends_after_start`, `doctor_schedule_windows_valid` CHECKs | data integrity |
 | `patients_blood_group_valid`, `patients_email_lowercase`, `patients_dob_after_1900` CHECKs | data integrity |
 
 ## Planned (next phases)
 
-* **Appointments & queue** — status history table, exclusion/unique constraints to prevent
-  double booking, daily token sequences per chamber.
 * **Clinical** — consultations with configurable vitals (key/value definitions, not hard-coded
   columns), ICD-compatible `diagnoses.code`.
 * **Prescriptions** — `prescriptions` (RX number, state machine DRAFT → FINALIZED → REVISED →

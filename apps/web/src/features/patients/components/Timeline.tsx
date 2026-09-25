@@ -10,7 +10,7 @@ import { errorMessage } from '@/utils/errors';
 import { formatDate, formatDateTime } from '@/utils/format';
 
 /** Types with data today; the rest are shown disabled until their module ships. */
-const AVAILABLE: TimelineType[] = ['registration', 'record'];
+const AVAILABLE: TimelineType[] = ['registration', 'record', 'appointment'];
 
 const ICONS: Record<TimelineType, typeof Activity> = {
   registration: UserPlus,
@@ -38,6 +38,9 @@ function EventItem({ event }: { event: TimelineEventDto }) {
         <time dateTime={event.occurredAt}>{formatDateTime(event.occurredAt)}</time>
         {event.actorName && <> · {t('timeline.by', { name: event.actorName })}</>}
       </p>
+      {event.type === 'appointment' && event.details.visitType && (
+        <p className="mt-0.5 text-xs text-ink-muted">{t(`visitType.${event.details.visitType}`)}</p>
+      )}
       {(event.details.fields || event.details.allergen || event.details.reason) && (
         <p className="mt-1 text-xs text-ink-muted">
           {event.details.fields && t('timeline.fields', { fields: event.details.fields })}

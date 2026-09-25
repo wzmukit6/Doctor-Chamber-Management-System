@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -10,8 +11,8 @@ import {
   CheckCircle2,
   CircleDashed,
   ClipboardCheck,
-  FilePlus2,
   Hourglass,
+  ListOrdered,
   Network,
   Search,
   ShieldCheck,
@@ -22,12 +23,14 @@ import {
   CalendarClock,
   Wallet,
 } from 'lucide-react';
-import { PERMISSIONS, type RoleKey } from '@chamber/shared';
+import { addDays, PERMISSIONS, zonedDate, type RoleKey } from '@chamber/shared';
 import { useAuth } from '@/stores/auth';
-import { auditApi, organizationsApi, chambersApi, patientsApi, usersApi } from '@/services/endpoints';
+import { appointmentsApi, auditApi, organizationsApi, chambersApi, patientsApi, queueApi, usersApi } from '@/services/endpoints';
+import { useChamberTz, useToday } from '@/hooks/useChamber';
+import { BookAppointmentModal } from '@/features/appointments/components/BookAppointmentModal';
 import { PatientLine } from '@/features/patients/components/PatientBits';
 import { Badge, Skeleton } from '@/components/ui';
-import { formatLongDate, formatRelative } from '@/utils/format';
+import { formatDateIn, formatLongDate, formatRelative, formatTimeIn } from '@/utils/format';
 import { describeAction } from '@/features/audit/describe';
 
 function StatCard({ label, value, icon, loading, hint, to }: { label: string; value?: ReactNode; icon: ReactNode; loading?: boolean; hint?: string; to?: string }) {
@@ -165,8 +168,8 @@ function RecentPatients() {
 const ROADMAP: { phase: number; key: string; status: 'done' | 'next' | 'planned' }[] = [
   { phase: 1, key: 'Foundation — auth, users, RBAC, chambers, audit', status: 'done' },
   { phase: 2, key: 'Patient management — registration, search, profile, timeline', status: 'done' },
-  { phase: 3, key: 'Appointments & queue', status: 'next' },
-  { phase: 4, key: 'Clinical workflow — consultation, vitals, diagnosis', status: 'planned' },
+  { phase: 3, key: 'Appointments & queue', status: 'done' },
+  { phase: 4, key: 'Clinical workflow — consultation, vitals, diagnosis', status: 'next' },
   { phase: 5, key: 'Prescriptions — builder, templates, versioning, PDF', status: 'planned' },
   { phase: 6, key: 'Billing & payments', status: 'planned' },
   { phase: 7, key: 'Reports, analytics & settings', status: 'planned' },
@@ -253,6 +256,7 @@ function ManagerDashboard() {
   const assistants = useQuery({ queryKey: ['dash', 'assistants'], queryFn: () => usersApi.list({ pageSize: 1, role: 'ASSISTANT', status: 'active' }) });
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
   const patients = useQuery({ queryKey: ['dash', 'patients'], queryFn: () => patientsApi.list({ pageSize: 1 }) });
+  const queue = useTodayQueue();
   const newPatients = useQuery({ queryKey: ['dash', 'patients-30d', since], queryFn: () => patientsApi.list({ pageSize: 1, registeredFrom: since }) });
   return (
     <>
@@ -271,7 +275,14 @@ function ManagerDashboard() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label={t('dashboard.patients_total')} value={patients.data?.meta.total} loading={patients.isLoading} icon={<UserRound className="h-5 w-5" />} to="/patients" />
         <StatCard label={t('dashboard.new_patients_30d')} value={newPatients.data?.meta.total} loading={newPatients.isLoading} icon={<UserPlus className="h-5 w-5" />} to="/patients" />
-        <PendingCard label={t('dashboard.todays_appointments')} icon={<CalendarClock className="h-5 w-5" />} module={t('nav.appointments')} />
+        <StatCard
+          label={t('dashboard.appointments_today')}
+          value={queue.data?.entries.length}
+          loading={queue.isLoading}
+          hint={queue.data ? `${t('queue.waiting')}: ${queue.data.summary.waiting} · ${t('queue.completed')}: ${queue.data.summary.completed}` : undefined}
+          icon={<CalendarClock className="h-5 w-5" />}
+          to="/queue"
+        />
         <PendingCard label={t('dashboard.payment_status')} icon={<Wallet className="h-5 w-5" />} module={t('nav.billing')} />
       </div>
       <ActivityAndRoadmap />
@@ -279,11 +290,65 @@ function ManagerDashboard() {
   );
 }
 
+/** Today's queue numbers (own queue for doctors, whole chamber otherwise). */
+function useTodayQueue(doctorId?: string) {
+  const { can } = useAuth();
+  const today = useToday();
+  return useQuery({
+    queryKey: ['queue', today, doctorId ?? ''],
+    queryFn: () => queueApi.get({ date: today, doctorId }),
+    enabled: can(PERMISSIONS.QUEUE_VIEW),
+    refetchInterval: 30_000,
+  });
+}
+
+function UpcomingAppointments({ doctorId }: { doctorId?: string }) {
+  const { t } = useTranslation();
+  const tz = useChamberTz();
+  const today = useToday();
+  const q = useQuery({
+    queryKey: ['appointments', 'upcoming', doctorId ?? ''],
+    queryFn: () => appointmentsApi.list({ from: today, to: addDays(today, 7), doctorId, status: 'BOOKED,CONFIRMED' }),
+  });
+  const rows = (q.data ?? []).filter((a) => new Date(a.endsAt).getTime() > Date.now()).slice(0, 6);
+  return (
+    <section className="card" aria-labelledby="upcoming-appts">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <h2 id="upcoming-appts" className="text-sm font-semibold text-ink">
+          {t('appointments.upcoming')}
+        </h2>
+        <Link to="/appointments" className="text-xs font-medium text-primary-700 hover:underline">
+          {t('appointments.view_calendar')}
+        </Link>
+      </div>
+      <ul className="divide-y divide-border">
+        {q.isLoading && <li className="p-4"><Skeleton className="h-6 w-2/3" /></li>}
+        {!q.isLoading && rows.length === 0 && <li className="px-4 py-6 text-center text-sm text-ink-muted">{t('appointments.no_upcoming')}</li>}
+        {rows.map((a) => (
+          <li key={a.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+            <span className="w-28 shrink-0 text-xs text-ink-muted">
+              {zonedDate(new Date(a.startsAt), tz) === today ? t('appointments.today') : formatDateIn(a.startsAt, tz)} {formatTimeIn(a.startsAt, tz)}
+            </span>
+            <Link to={`/patients/${a.patient.id}`} className="min-w-0 flex-1 truncate font-medium text-ink hover:underline">
+              {a.patient.fullName}
+            </Link>
+            <span className="hidden text-xs text-ink-subtle sm:inline">{t(`visitType.${a.visitType}`)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => void }) {
   const { t } = useTranslation();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const navigate = useNavigate();
   const doctor = role === 'DOCTOR';
+  const [booking, setBooking] = useState(false);
+  const queue = useTodayQueue(doctor ? (user?.doctorId ?? undefined) : undefined);
+  const s = queue.data?.summary;
+  const total = queue.data?.entries.length;
   return (
     <>
       <section aria-labelledby="quick-actions">
@@ -298,33 +363,40 @@ function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => 
             disabled={!can(PERMISSIONS.PATIENTS_CREATE)}
             onClick={() => navigate('/patients/new')}
           />
-          <QuickAction label={t('dashboard.new_appointment')} icon={<CalendarPlus className="h-4 w-4" />} disabled />
+          <QuickAction
+            label={t('dashboard.new_appointment')}
+            icon={<CalendarPlus className="h-4 w-4" />}
+            disabled={!can(PERMISSIONS.APPOINTMENTS_CREATE)}
+            onClick={() => setBooking(true)}
+          />
           {doctor ? (
             <QuickAction label={t('dashboard.start_consultation')} icon={<Stethoscope className="h-4 w-4" />} disabled />
           ) : (
-            <QuickAction label={t('dashboard.create_prescription')} icon={<FilePlus2 className="h-4 w-4" />} disabled />
+            <QuickAction label={t('nav.queue')} icon={<ListOrdered className="h-4 w-4" />} onClick={() => navigate('/queue')} />
           )}
         </div>
       </section>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <PendingCard label={t('dashboard.todays_appointments')} icon={<CalendarClock className="h-5 w-5" />} module={t('nav.appointments')} />
-        <PendingCard label={t('dashboard.waiting_patients')} icon={<Hourglass className="h-5 w-5" />} module={t('nav.queue')} />
+        <StatCard label={t('dashboard.todays_appointments')} value={total} loading={queue.isLoading} icon={<CalendarClock className="h-5 w-5" />} to="/appointments" />
+        <StatCard label={t('dashboard.waiting_patients')} value={s?.waiting} loading={queue.isLoading} icon={<Hourglass className="h-5 w-5" />} to="/queue" hint={s?.onHold ? `${t('queue.on_hold')}: ${s.onHold}` : undefined} />
         {doctor ? (
           <>
-            <PendingCard label={t('dashboard.completed_consultations')} icon={<ClipboardCheck className="h-5 w-5" />} module={t('nav.consultations')} />
+            <StatCard label={t('dashboard.completed_consultations')} value={s?.completed} loading={queue.isLoading} icon={<ClipboardCheck className="h-5 w-5" />} to="/queue" />
             <PendingCard label={t('dashboard.followups_due')} icon={<CalendarClock className="h-5 w-5" />} module={t('nav.consultations')} />
           </>
         ) : (
           <>
-            <PendingCard label={t('dashboard.checked_in')} icon={<ClipboardCheck className="h-5 w-5" />} module={t('nav.queue')} />
+            <StatCard label={t('dashboard.checked_in')} value={s?.checkedIn} loading={queue.isLoading} icon={<ClipboardCheck className="h-5 w-5" />} to="/queue" />
             <PendingCard label={t('dashboard.payment_status')} icon={<Wallet className="h-5 w-5" />} module={t('nav.billing')} />
           </>
         )}
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
+        {doctor ? <UpcomingAppointments doctorId={user?.doctorId ?? undefined} /> : <UpcomingAppointments />}
         <RecentPatients />
-        <ActivityAndRoadmap compact />
       </div>
+      <ActivityAndRoadmap />
+      <BookAppointmentModal open={booking} onClose={() => setBooking(false)} />
     </>
   );
 }

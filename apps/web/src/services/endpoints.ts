@@ -1,4 +1,16 @@
 import type {
+  AppointmentAction,
+  AppointmentDto,
+  AppointmentHistoryDto,
+  AppointmentSettings,
+  AvailabilityDto,
+  CreateAppointmentInput,
+  DoctorDto,
+  DoctorScheduleInput,
+  QueueDto,
+  QueueEntryDto,
+  RescheduleAppointmentInput,
+  UpdateAppointmentSettingsInput,
   AdminResetPasswordInput,
   AllergyInput,
   CreatePatientInput,
@@ -98,4 +110,35 @@ export const patientsApi = {
   remove: (id: string, reason: string) => api.delete(`/patients/${id}`, { reason }),
   timeline: (id: string, params: { types?: string; before?: string; limit?: number }) =>
     api.get<{ events: TimelineEventDto[]; hasMore: boolean }>(`/patients/${id}/timeline`, params),
+};
+
+export const doctorsApi = {
+  list: () => api.get<DoctorDto[]>('/doctors'),
+  updateSchedule: (id: string, input: DoctorScheduleInput) => api.put<DoctorDto>(`/doctors/${id}/schedule`, input),
+};
+
+export type AppointmentDetail = AppointmentDto & { history: AppointmentHistoryDto[] };
+
+export const appointmentsApi = {
+  list: (params: { from: string; to: string; doctorId?: string; patientId?: string; status?: string }) => api.get<AppointmentDto[]>('/appointments', params),
+  get: (id: string) => api.get<AppointmentDetail>(`/appointments/${id}`),
+  availability: (doctorId: string, date: string, excludeAppointmentId?: string) =>
+    api.get<AvailabilityDto>('/appointments/availability', { doctorId, date, excludeAppointmentId }),
+  create: (input: CreateAppointmentInput) => api.post<AppointmentDto>('/appointments', input),
+  reschedule: (id: string, input: RescheduleAppointmentInput) => api.post<AppointmentDto>(`/appointments/${id}/reschedule`, input),
+  act: (id: string, action: AppointmentAction, body: { reason?: string | null; version?: number } = {}) =>
+    api.post<AppointmentDto>(`/appointments/${id}/actions/${action}`, body),
+};
+
+export const queueApi = {
+  get: (params: { date?: string; doctorId?: string }) => api.get<QueueDto>('/queue', params),
+  callNext: (doctorId: string) => api.post<QueueEntryDto | null>('/queue/call-next', { doctorId }),
+  call: (appointmentId: string) => api.post<QueueEntryDto>(`/queue/${appointmentId}/call`),
+  hold: (appointmentId: string) => api.post<QueueEntryDto>(`/queue/${appointmentId}/hold`),
+  resume: (appointmentId: string) => api.post<QueueEntryDto>(`/queue/${appointmentId}/resume`),
+};
+
+export const settingsApi = {
+  appointments: () => api.get<AppointmentSettings & { version: number }>('/settings/appointments'),
+  updateAppointments: (input: UpdateAppointmentSettingsInput) => api.put<AppointmentSettings & { version: number }>('/settings/appointments', input),
 };

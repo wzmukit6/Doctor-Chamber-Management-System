@@ -15,8 +15,10 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { AgeGender, AllergyAlert } from './components/PatientBits';
 import { MedicalHistoryPanel } from './components/MedicalHistoryPanel';
 import { PatientTimeline } from './components/Timeline';
+import { BookAppointmentModal } from '@/features/appointments/components/BookAppointmentModal';
+import { PatientAppointments } from '@/features/appointments/components/PatientAppointments';
 
-type Tab = 'overview' | 'medical' | 'timeline';
+type Tab = 'overview' | 'medical' | 'timeline' | 'appointments';
 
 function Detail({ label, children, icon }: { label: string; children: ReactNode; icon?: ReactNode }) {
   return (
@@ -40,6 +42,7 @@ export function PatientProfilePage() {
   const { can } = useAuth();
   const [tab, setTab] = useState<Tab>('overview');
   const [deleting, setDeleting] = useState(false);
+  const [booking, setBooking] = useState(false);
 
   const query = useQuery({ queryKey: ['patients', id], queryFn: () => patientsApi.get(id!) });
   const remove = useMutation({
@@ -64,11 +67,11 @@ export function PatientProfilePage() {
   if (query.isError || !query.data) return <ErrorState message={errorMessage(query.error)} onRetry={() => void query.refetch()} />;
 
   const p: PatientDto = query.data;
-  const tabs: { key: Tab | 'appointments' | 'prescriptions'; label: string; disabled?: boolean }[] = [
+  const tabs: { key: Tab | 'prescriptions'; label: string; disabled?: boolean }[] = [
     { key: 'overview', label: t('patients.tab_overview') },
     ...(p.medical ? [{ key: 'medical' as const, label: t('patients.tab_medical') }] : []),
     { key: 'timeline', label: t('patients.tab_timeline') },
-    { key: 'appointments', label: t('patients.tab_appointments'), disabled: true },
+    ...(can(PERMISSIONS.APPOINTMENTS_VIEW) ? [{ key: 'appointments' as const, label: t('patients.tab_appointments') }] : []),
     { key: 'prescriptions', label: t('patients.tab_prescriptions'), disabled: true },
   ];
 
@@ -103,9 +106,11 @@ export function PatientProfilePage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" size="sm" icon={<CalendarPlus className="h-4 w-4" />} disabled title={t('common.coming_soon')}>
-              {t('patients.new_appointment')}
-            </Button>
+            {can(PERMISSIONS.APPOINTMENTS_CREATE) && (
+              <Button variant="secondary" size="sm" icon={<CalendarPlus className="h-4 w-4" />} onClick={() => setBooking(true)}>
+                {t('patients.new_appointment')}
+              </Button>
+            )}
             {can(PERMISSIONS.CONSULTATIONS_CREATE) && (
               <Button size="sm" icon={<Stethoscope className="h-4 w-4" />} disabled title={t('common.coming_soon')}>
                 {t('patients.start_consultation')}
@@ -213,8 +218,10 @@ export function PatientProfilePage() {
         )}
         {tab === 'medical' && p.medical && <MedicalHistoryPanel patient={p} />}
         {tab === 'timeline' && <PatientTimeline patientId={p.id} />}
+        {tab === 'appointments' && <PatientAppointments patientId={p.id} />}
       </div>
 
+      <BookAppointmentModal open={booking} onClose={() => setBooking(false)} defaults={{ patient: p }} />
       <ConfirmDialog
         open={deleting}
         title={t('patients.delete_title', { name: p.fullName })}

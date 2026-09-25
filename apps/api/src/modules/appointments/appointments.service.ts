@@ -36,13 +36,13 @@ type BookingIssue = 'doctor_busy' | 'outside_schedule' | 'daily_limit';
 const ACTIVE: AppointmentStatus[] = ACTIVE_APPOINTMENT_STATUSES as AppointmentStatus[];
 
 /** What each action does: allowed source statuses → target, and required permission. */
-const ACTIONS: Record<AppointmentAction, { to: AppointmentStatus; permission: string; reasonRequired?: boolean }> = {
+const ACTIONS: Record<AppointmentAction, { to: AppointmentStatus; permission: string; reasonRequired?: boolean; from?: AppointmentStatus[] }> = {
   confirm: { to: 'CONFIRMED', permission: PERMISSIONS.APPOINTMENTS_UPDATE },
   'check-in': { to: 'CHECKED_IN', permission: PERMISSIONS.QUEUE_MANAGE },
-  'send-to-queue': { to: 'WAITING', permission: PERMISSIONS.QUEUE_MANAGE },
+  'send-to-queue': { to: 'WAITING', permission: PERMISSIONS.QUEUE_MANAGE, from: ['CHECKED_IN'] },
   start: { to: 'IN_CONSULTATION', permission: PERMISSIONS.CONSULTATIONS_CREATE },
   complete: { to: 'COMPLETED', permission: PERMISSIONS.QUEUE_MANAGE },
-  'return-to-queue': { to: 'WAITING', permission: PERMISSIONS.QUEUE_MANAGE },
+  'return-to-queue': { to: 'WAITING', permission: PERMISSIONS.QUEUE_MANAGE, from: ['IN_CONSULTATION'] },
   cancel: { to: 'CANCELLED', permission: PERMISSIONS.APPOINTMENTS_CANCEL, reasonRequired: true },
   'no-show': { to: 'NO_SHOW', permission: PERMISSIONS.APPOINTMENTS_UPDATE },
 };
@@ -74,8 +74,10 @@ export class AppointmentsService {
     const chamber = await this.chamber(actor);
     const from = zonedDayRange(q.from, chamber.timezone).start;
     const to = zonedDayRange(q.to, chamber.timezone).end;
-    if (to.getTime() - from.getTime() > 62 * 86_400_000) {
-      throw new AppError(ERROR_CODES.VALIDATION_FAILED, 'Date range too large (max 62 days)', 422, [{ path: 'to', message: 'validation.range_too_large' }]);
+    // Calendar views need at most ~6 weeks; one patient's history may span years.
+    const maxDays = q.patientId ? 5 * 366 : 62;
+    if (to.getTime() - from.getTime() > maxDays * 86_400_000) {
+      throw new AppError(ERROR_CODES.VALIDATION_FAILED, `Date range too large (max ${maxDays} days)`, 422, [{ path: 'to', message: 'validation.range_too_large' }]);
     }
     const rows = await this.prisma.appointment.findMany({
       where: {
@@ -299,7 +301,8 @@ export class AppointmentsService {
         throw new AppError(ERROR_CODES.NOT_APPOINTMENT_DOCTOR, "Only the appointment's doctor can do this", HttpStatus.FORBIDDEN);
       }
     }
-    if (!canTransition(appt.status, def.to)) {
+    // Actions sharing a target status are distinguished by their allowed source status.
+    if (!canTransition(appt.status, def.to) || (def.from && !def.from.includes(appt.status))) {
       throw new AppError(
         ERROR_CODES.INVALID_STATUS_TRANSITION,
         `Cannot ${action.replace(/-/g, ' ')} an appointment that is ${appt.status.toLowerCase().replace('_', ' ')}`,

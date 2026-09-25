@@ -21,6 +21,9 @@ const AuditLogsPage = lazy(() => import('@/features/audit/AuditLogsPage').then((
 const PatientsPage = lazy(() => import('@/features/patients/PatientsPage').then((m) => ({ default: m.PatientsPage })));
 const PatientFormPage = lazy(() => import('@/features/patients/PatientFormPage').then((m) => ({ default: m.PatientFormPage })));
 const PatientProfilePage = lazy(() => import('@/features/patients/PatientProfilePage').then((m) => ({ default: m.PatientProfilePage })));
+const AppointmentsPage = lazy(() => import('@/features/appointments/AppointmentsPage').then((m) => ({ default: m.AppointmentsPage })));
+const QueuePage = lazy(() => import('@/features/appointments/QueuePage').then((m) => ({ default: m.QueuePage })));
+const SettingsPage = lazy(() => import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const ProfilePage = lazy(() => import('@/features/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 
 function FullPageSpinner() {
@@ -92,6 +95,36 @@ export function App() {
             <Suspense fallback={<FullPageSpinner />}>
               <RequirePermission permission={PERMISSIONS.PATIENTS_UPDATE}>
                 <PatientFormPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="appointments"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.APPOINTMENTS_VIEW}>
+                <AppointmentsPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="queue"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.QUEUE_VIEW}>
+                <QueuePage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="settings"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.SETTINGS_VIEW}>
+                <SettingsPage />
               </RequirePermission>
             </Suspense>
           }

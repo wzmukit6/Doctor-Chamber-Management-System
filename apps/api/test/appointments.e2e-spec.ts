@@ -237,6 +237,9 @@ describe('Appointments & queue (integration)', () => {
 
       const started = await act(testDoctor, second.id, 'start');
       expect(started.body.data.status).toBe('IN_CONSULTATION');
+      // Front desk cannot pull a patient out of the doctor's room via "send to queue".
+      expect((await act(assistant, second.id, 'send-to-queue')).status).toBe(409);
+      expect((await act(doctorA, second.id, 'return-to-queue')).status).toBe(403);
       // One patient at a time per doctor.
       await assistant.post(`/api/queue/${first.id}/resume`);
       const busy = await act(testDoctor, first.id, 'start');

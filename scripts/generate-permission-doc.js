@@ -46,6 +46,8 @@ md += `
 | Super Admin role always holds every permission and cannot be edited. | \`RolesService\` |
 | Patients are registered in, and only visible to, the actor's active chamber; a platform admin without a chamber cannot register patients. | \`PatientsService\` |
 | Capturing medical history or allergies at registration additionally requires \`patients.update_medical\`. | \`PatientsService.create\` |
+| Only the appointment's doctor can start, complete or return a consultation, and a doctor can only call patients from their own queue (\`NOT_APPOINTMENT_DOCTOR\`). | \`AppointmentsService.act\`, \`QueueService\` |
+| Appointment actions follow an explicit status machine; each action additionally requires its own permission (e.g. check-in → \`queue.manage\`, start → \`consultations.create\`, cancel → \`appointments.cancel\` + reason). | \`AppointmentsService.act\` |
 | Medical values in audit logs and the patient timeline are redacted for viewers without \`patients.view_medical\`. | \`AuditController\`, \`PatientTimelineService\` |
 `;
 

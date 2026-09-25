@@ -50,3 +50,18 @@ export function describeDevice(ua: string | null): string {
   const os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Mac OS/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
   return os ? `${browser} · ${os}` : browser;
 }
+
+/** HH:MM (localized) of an instant in a timezone. */
+export function formatTimeIn(value: string | Date, timeZone: string): string {
+  return new Intl.DateTimeFormat(locale(), { timeStyle: 'short', timeZone }).format(new Date(value));
+}
+
+/** Medium date of an instant in a timezone. */
+export function formatDateIn(value: string | Date, timeZone: string): string {
+  return new Intl.DateTimeFormat(locale(), { dateStyle: 'medium', timeZone }).format(new Date(value));
+}
+
+/** Localized long label for a YYYY-MM-DD string (no timezone shift). */
+export function formatDayLabel(date: string, opts: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }): string {
+  return new Intl.DateTimeFormat(locale(), { ...opts, timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`));
+}

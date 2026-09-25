@@ -7,12 +7,35 @@ ships working backend, frontend, tests and documentation before the next one sta
 |---|---|---|
 | 1. Foundation | Project setup, database, authentication, user management, RBAC, organization/chamber architecture, audit trail, API docs | ✅ Done |
 | 2. Patient management | Registration, fast/fuzzy search, profile (demographics + medical info), timeline, Ctrl+K patient search | ✅ Done |
-| 3. Appointments & queue | Calendar (day/week/month), booking with conflict detection, check-in, live token queue | ⏭ Next |
-| 4. Clinical workflow | Consultation, configurable vitals, complaints, diagnosis (ICD-ready), investigations, clinical notes | Planned |
+| 3. Appointments & queue | Calendar (day/week/month), booking with conflict detection, check-in, live token queue | ✅ Done |
+| 4. Clinical workflow | Consultation, configurable vitals, complaints, diagnosis (ICD-ready), investigations, clinical notes | ⏭ Next |
 | 5. Prescriptions | Medicine database, smart builder, templates, finalization, versioning, A4 PDF, QR verification | Planned |
 | 6. Billing | Fees, payments, receipts, dues, financial reports | Planned |
 | 7. Reports & administration | Dashboard analytics, reports, exports (PDF/CSV/Excel), settings | Planned |
 | 8. Hardening | Security audit, full RBAC matrix tests, performance, backups/restore, deployment | Planned |
+
+## Phase 3 — delivered
+
+* **Doctor schedules**: weekly availability windows per doctor (several per day), per-doctor slot
+  length and daily patient limit; edited by managers (`schedules.manage`), viewable by all staff.
+* **Chamber appointment settings**: default slot length, daily limit, token numbering (per doctor or
+  chamber-wide, optional prefix), auto-queue on check-in (`settings.manage`).
+* **Booking** in chamber-local time (timezone-aware, stored in UTC) from a slot grid or a custom time;
+  visit type, reason, notes; walk-ins that are checked in immediately.
+* **Conflict prevention**: a patient can never be double-booked; a doctor clash, a time outside the
+  schedule or exceeding the daily limit needs explicit confirmation ("overbook"). Both rules are
+  enforced by PostgreSQL exclusion constraints, so concurrent requests cannot both succeed.
+* **Status machine**: BOOKED → CONFIRMED → CHECKED_IN → WAITING → IN_CONSULTATION → COMPLETED, plus
+  CANCELLED (reason required) and NO_SHOW (only after the start time); check-in only on the day.
+  Every change is recorded in `appointment_status_history` and the audit log.
+* **Ownership**: only the appointment's doctor can start, complete or return a consultation and call
+  from their own queue; a doctor sees one patient at a time.
+* **Live queue**: tokens issued atomically at check-in, call next (skips held patients), call again,
+  hold/resume, now-serving panel, summary counts, 10-second auto-refresh, screen-reader announcements.
+* **Calendar**: day (columns per doctor), week and month views, click an empty slot to book,
+  side-by-side lanes for overbooked slots, current-time line.
+* Patient profile gains an Appointments tab and "New appointment"; the timeline shows visits.
+* Dashboards show today's real appointment/queue numbers and upcoming appointments.
 
 ## Phase 2 — delivered
 
