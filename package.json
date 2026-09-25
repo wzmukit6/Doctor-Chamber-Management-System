@@ -9,6 +9,8 @@
     "apps/web"
   ],
   "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "node scripts/dev.mjs",
     "build:shared": "npm run build -w @chamber/shared",
     "build": "npm run build:shared && npm run build -w @chamber/api && npm run build -w @chamber/web",
     "dev:api": "npm run dev -w @chamber/api",
