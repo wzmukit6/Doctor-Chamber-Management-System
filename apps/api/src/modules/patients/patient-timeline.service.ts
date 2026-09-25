@@ -36,6 +36,11 @@ export class PatientTimelineService {
     this.providers = [this.registrationProvider(), this.recordChangesProvider()];
   }
 
+  /** Other modules (appointments, consultations, prescriptions, billing) contribute events here. */
+  register(provider: TimelineProvider) {
+    this.providers.push(provider);
+  }
+
   async timeline(
     actor: Actor,
     patient: PatientDetailRow,

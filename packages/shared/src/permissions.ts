@@ -37,6 +37,7 @@ export const PERMISSIONS = {
   APPOINTMENTS_CANCEL: 'appointments.cancel',
   QUEUE_VIEW: 'queue.view',
   QUEUE_MANAGE: 'queue.manage',
+  SCHEDULES_MANAGE: 'schedules.manage',
 
   // Clinical
   CONSULTATIONS_VIEW: 'consultations.view',
@@ -134,6 +135,7 @@ export const PERMISSION_GROUPS: { key: string; permissions: Permission[] }[] = [
       PERMISSIONS.APPOINTMENTS_CANCEL,
       PERMISSIONS.QUEUE_VIEW,
       PERMISSIONS.QUEUE_MANAGE,
+      PERMISSIONS.SCHEDULES_MANAGE,
     ],
   },
   {
@@ -223,6 +225,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleKey, Permission[]> = {
     P.APPOINTMENTS_CANCEL,
     P.QUEUE_VIEW,
     P.QUEUE_MANAGE,
+    P.SCHEDULES_MANAGE,
     P.CONSULTATIONS_VIEW,
     P.PRESCRIPTIONS_VIEW,
     P.PRESCRIPTIONS_PRINT,
@@ -329,6 +332,7 @@ export const FORBIDDEN_GRANTS: Record<RoleKey, Permission[]> = {
   ],
   [ROLES.ASSISTANT]: [
     P.SYSTEM_MANAGE,
+    P.SCHEDULES_MANAGE,
     P.ORGANIZATIONS_MANAGE,
     P.ROLES_MANAGE,
     P.USERS_CREATE,

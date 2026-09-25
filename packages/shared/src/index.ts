@@ -8,3 +8,6 @@ export * from './schemas/auth';
 export * from './schemas/tenancy';
 export * from './schemas/users';
 export * from './schemas/patients';
+export * from './time';
+export * from './appointments';
+export * from './schemas/appointments';

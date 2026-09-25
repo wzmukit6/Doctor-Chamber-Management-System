@@ -13,6 +13,9 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
 import { ChambersModule } from './modules/chambers/chambers.module';
 import { HealthModule } from './modules/health/health.module';
 import { PatientsModule } from './modules/patients/patients.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { DoctorsModule } from './modules/doctors/doctors.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { AuthGuard } from './common/guards/auth.guard';
@@ -34,6 +37,9 @@ const config = loadConfig();
     OrganizationsModule,
     ChambersModule,
     PatientsModule,
+    SettingsModule,
+    DoctorsModule,
+    AppointmentsModule,
     HealthModule,
   ],
   providers: [

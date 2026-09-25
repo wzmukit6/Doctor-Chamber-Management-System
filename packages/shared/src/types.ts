@@ -5,7 +5,7 @@ export interface MembershipSummary {
   id: string;
   role: RoleKey;
   organization: { id: string; name: string } | null;
-  chamber: { id: string; name: string; code: string } | null;
+  chamber: { id: string; name: string; code: string; timezone: string } | null;
 }
 
 export interface CurrentUser {
@@ -171,4 +171,87 @@ export interface TimelineEventDto {
   titleKey: string;
   details: Record<string, string | number | null>;
   actorName: string | null;
+}
+
+export interface DoctorScheduleWindowDto {
+  weekday: number;
+  startTime: string;
+  endTime: string;
+}
+
+export interface DoctorDto {
+  id: string;
+  userId: string;
+  fullName: string;
+  specialty: string | null;
+  qualifications: string | null;
+  consultationFee: number | null;
+  followUpFee: number | null;
+  isActive: boolean;
+  schedule: DoctorScheduleWindowDto[];
+  slotMinutes: number | null;
+  maxDailyPatients: number | null;
+  version: number;
+}
+
+export interface AppointmentDto {
+  id: string;
+  chamberId: string;
+  patient: { id: string; patientCode: string; fullName: string; gender: string; age: number | null; phone: string | null };
+  doctor: { id: string; fullName: string; specialty: string | null };
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: number;
+  status: import('./appointments').AppointmentStatus;
+  visitType: import('./appointments').VisitType;
+  reason: string | null;
+  notes: string | null;
+  token: { number: number; label: string; onHold: boolean; calledAt: string | null; callCount: number } | null;
+  checkedInAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  cancelledReason: string | null;
+  createdByName: string | null;
+  createdAt: string;
+  version: number;
+}
+
+export interface AppointmentHistoryDto {
+  id: string;
+  action: 'CREATED' | 'STATUS_CHANGED' | 'RESCHEDULED' | 'UPDATED';
+  fromStatus: string | null;
+  toStatus: string | null;
+  details: Record<string, unknown> | null;
+  reason: string | null;
+  changedByName: string | null;
+  createdAt: string;
+}
+
+export interface AvailabilitySlotDto {
+  startsAt: string;
+  endsAt: string;
+  time: string;
+  available: boolean;
+  past: boolean;
+}
+
+export interface AvailabilityDto {
+  date: string;
+  timezone: string;
+  slotMinutes: number;
+  windows: { startTime: string; endTime: string }[];
+  slots: AvailabilitySlotDto[];
+  bookedCount: number;
+  maxDailyPatients: number | null;
+}
+
+export interface QueueEntryDto extends AppointmentDto {
+  waitingSince: string | null;
+}
+
+export interface QueueDto {
+  date: string;
+  timezone: string;
+  entries: QueueEntryDto[];
+  summary: { waiting: number; onHold: number; inConsultation: number; completed: number; checkedIn: number; booked: number };
 }

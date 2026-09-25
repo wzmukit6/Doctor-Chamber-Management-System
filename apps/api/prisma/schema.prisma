@@ -54,10 +54,11 @@ model Chamber {
   deletedById    String?   @map("deleted_by") @db.Uuid
   deletionReason String?   @map("deletion_reason") @db.VarChar(500)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   memberships  UserRole[]
   doctors      Doctor[]
   patients     Patient[]
+  appointments Appointment[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -179,8 +180,13 @@ model Doctor {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Restrict)
-  chamber Chamber @relation(fields: [chamberId], references: [id], onDelete: Restrict)
+  slotMinutes      Int? @map("slot_minutes")
+  maxDailyPatients Int? @map("max_daily_patients")
+
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  chamber      Chamber                @relation(fields: [chamberId], references: [id], onDelete: Restrict)
+  schedule     DoctorScheduleWindow[]
+  appointments Appointment[]
 
   @@unique([userId, chamberId])
   @@index([chamberId])
@@ -331,6 +337,7 @@ model Patient {
   allergies      PatientAllergy[]
   medicalHistory PatientMedicalHistory?
   recentViews    PatientRecentView[]
+  appointments   Appointment[]
 
   @@unique([chamberId, patientCode])
   @@index([chamberId, createdAt])
@@ -415,4 +422,138 @@ model PatientRecentView {
   @@id([userId, patientId])
   @@index([userId, chamberId, viewedAt])
   @@map("patient_recent_views")
+}
+
+// ─────────────────────────── Appointments & queue (Phase 3) ───────────────────────────
+
+enum AppointmentStatus {
+  BOOKED
+  CONFIRMED
+  CHECKED_IN
+  WAITING
+  IN_CONSULTATION
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum VisitType {
+  NEW
+  FOLLOW_UP
+  REPORT_REVIEW
+}
+
+enum AppointmentHistoryAction {
+  CREATED
+  STATUS_CHANGED
+  RESCHEDULED
+  UPDATED
+}
+
+/// Weekly availability window of a doctor (chamber-local wall-clock times).
+model DoctorScheduleWindow {
+  id        String   @id @default(uuid()) @db.Uuid
+  doctorId  String   @map("doctor_id") @db.Uuid
+  weekday   Int      @db.SmallInt
+  startTime String   @map("start_time") @db.VarChar(5)
+  endTime   String   @map("end_time") @db.VarChar(5)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, weekday])
+  @@map("doctor_schedule_windows")
+}
+
+/// Double booking is prevented by exclusion constraints (see migration SQL).
+model Appointment {
+  id              String            @id @default(uuid()) @db.Uuid
+  organizationId  String            @map("organization_id") @db.Uuid
+  chamberId       String            @map("chamber_id") @db.Uuid
+  patientId       String            @map("patient_id") @db.Uuid
+  doctorId        String            @map("doctor_id") @db.Uuid
+  startsAt        DateTime          @map("starts_at") @db.Timestamptz(3)
+  endsAt          DateTime          @map("ends_at") @db.Timestamptz(3)
+  status          AppointmentStatus @default(BOOKED)
+  visitType       VisitType         @default(NEW) @map("visit_type")
+  reason          String?           @db.VarChar(300)
+  notes           String?           @db.VarChar(1000)
+  isWalkIn        Boolean           @default(false) @map("is_walk_in")
+  isOverbooked    Boolean           @default(false) @map("is_overbooked")
+  checkedInAt     DateTime?         @map("checked_in_at") @db.Timestamptz(3)
+  queuedAt        DateTime?         @map("queued_at") @db.Timestamptz(3)
+  startedAt       DateTime?         @map("started_at") @db.Timestamptz(3)
+  completedAt     DateTime?         @map("completed_at") @db.Timestamptz(3)
+  cancelledAt     DateTime?         @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById   String?           @map("cancelled_by") @db.Uuid
+  cancelledReason String?           @map("cancelled_reason") @db.VarChar(500)
+  isDemo          Boolean           @default(false) @map("is_demo")
+  version         Int               @default(1)
+  createdById     String?           @map("created_by") @db.Uuid
+  createdByName   String?           @map("created_by_name") @db.VarChar(150)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  chamber Chamber                    @relation(fields: [chamberId], references: [id], onDelete: Restrict)
+  patient Patient                    @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  doctor  Doctor                     @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  history AppointmentStatusHistory[]
+  token   QueueToken?
+
+  @@index([chamberId, startsAt])
+  @@index([doctorId, startsAt])
+  @@index([patientId, startsAt])
+  @@index([chamberId, status])
+  @@map("appointments")
+}
+
+model AppointmentStatusHistory {
+  id            String                   @id @default(uuid()) @db.Uuid
+  appointmentId String                   @map("appointment_id") @db.Uuid
+  action        AppointmentHistoryAction
+  fromStatus    AppointmentStatus?       @map("from_status")
+  toStatus      AppointmentStatus?       @map("to_status")
+  details       Json?
+  reason        String?                  @db.VarChar(500)
+  changedById   String?                  @map("changed_by") @db.Uuid
+  changedByName String?                  @map("changed_by_name") @db.VarChar(150)
+  createdAt     DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([appointmentId, createdAt])
+  @@map("appointment_status_history")
+}
+
+/// Daily token issued at check-in (spec §8).
+model QueueToken {
+  id            String    @id @default(uuid()) @db.Uuid
+  chamberId     String    @map("chamber_id") @db.Uuid
+  doctorId      String    @map("doctor_id") @db.Uuid
+  appointmentId String    @unique @map("appointment_id") @db.Uuid
+  queueDate     DateTime  @map("queue_date") @db.Date
+  /// "ALL" for chamber-wide numbering, otherwise the doctor id.
+  scopeKey      String    @map("scope_key") @db.VarChar(40)
+  tokenNumber   Int       @map("token_number")
+  label         String    @db.VarChar(12)
+  onHold        Boolean   @default(false) @map("on_hold")
+  calledAt      DateTime? @map("called_at") @db.Timestamptz(3)
+  callCount     Int       @default(0) @map("call_count")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@unique([chamberId, scopeKey, queueDate, tokenNumber])
+  @@index([chamberId, queueDate])
+  @@map("queue_tokens")
+}
+
+model QueueTokenSequence {
+  chamberId String   @map("chamber_id") @db.Uuid
+  scopeKey  String   @map("scope_key") @db.VarChar(40)
+  queueDate DateTime @map("queue_date") @db.Date
+  lastValue Int      @default(0) @map("last_value")
+
+  @@id([chamberId, scopeKey, queueDate])
+  @@map("queue_token_sequences")
 }

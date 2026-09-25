@@ -269,3 +269,138 @@ export async function seedDemoPatients(prisma: PrismaClient) {
   if (chamberA) await seedPatientsFor(prisma, chamberA, DEMO_PATIENTS, 100, assistant?.id ?? null);
   if (chamberB) await seedPatientsFor(prisma, chamberB, DEMO_PATIENTS_B, 500, doctorB?.id ?? null);
 }
+
+/** Weekly schedules for the demo doctors (chamber-local times). Friday is the weekly holiday. */
+async function seedSchedules(prisma: PrismaClient) {
+  const doctorA = await prisma.doctor.findFirst({ where: { user: { email: DEMO_USERS.doctor } } });
+  const doctorB = await prisma.doctor.findFirst({ where: { user: { email: DEMO_USERS.doctorB } } });
+  if (doctorA && (await prisma.doctorScheduleWindow.count({ where: { doctorId: doctorA.id } })) === 0) {
+    const windows = [6, 0, 1, 2, 3, 4].flatMap((weekday) => [
+      { doctorId: doctorA.id, weekday, startTime: '09:00', endTime: '13:00' },
+      { doctorId: doctorA.id, weekday, startTime: '16:00', endTime: '22:00' },
+    ]);
+    await prisma.doctorScheduleWindow.createMany({ data: windows });
+    await prisma.doctor.update({ where: { id: doctorA.id }, data: { slotMinutes: 15, maxDailyPatients: 40 } });
+  }
+  if (doctorB && (await prisma.doctorScheduleWindow.count({ where: { doctorId: doctorB.id } })) === 0) {
+    await prisma.doctorScheduleWindow.createMany({
+      data: [0, 1, 2, 3, 4].map((weekday) => ({ doctorId: doctorB.id, weekday, startTime: '15:00', endTime: '20:00' })),
+    });
+    await prisma.doctor.update({ where: { id: doctorB.id }, data: { slotMinutes: 20 } });
+  }
+}
+
+/**
+ * Demo appointments around "now" so the queue and calendar look alive whenever the
+ * seed runs: finished visits, a patient with the doctor, patients waiting (one on
+ * hold), later bookings, plus yesterday's and tomorrow's appointments.
+ * Idempotent per day: skipped when today already has appointments.
+ */
+async function seedAppointments(prisma: PrismaClient) {
+  const chamber = await prisma.chamber.findFirst({ where: { code: 'DHN', organization: { slug: 'demo-health' } } });
+  const doctor = await prisma.doctor.findFirst({ where: { user: { email: DEMO_USERS.doctor } }, include: { user: true } });
+  const assistant = await prisma.user.findUnique({ where: { email: DEMO_USERS.assistant } });
+  if (!chamber || !doctor) return;
+  const patients = await prisma.patient.findMany({ where: { chamberId: chamber.id, isDemo: true }, orderBy: { patientCode: 'asc' } });
+  if (patients.length < 12) return;
+
+  const slot = 15 * 60_000;
+  const now = Date.now();
+  const base = Math.floor(now / slot) * slot; // current 15-minute slot
+  const tz = chamber.timezone;
+  const todayLocal = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(now));
+  const dayStart = new Date(new Date(`${todayLocal}T00:00:00Z`).getTime() - offsetMinutes(tz, now) * 60_000);
+  const existing = await prisma.appointment.count({ where: { chamberId: chamber.id, startsAt: { gte: dayStart, lt: new Date(dayStart.getTime() + 86_400_000) } } });
+  if (existing > 0) return;
+
+  type Plan = { patient: number; offsetSlots: number; status: 'BOOKED' | 'CONFIRMED' | 'WAITING' | 'IN_CONSULTATION' | 'COMPLETED' | 'NO_SHOW' | 'CANCELLED'; token?: number; hold?: boolean; visit?: 'NEW' | 'FOLLOW_UP'; reason?: string; day?: number };
+  const plans: Plan[] = [
+    { patient: 0, offsetSlots: -6, status: 'COMPLETED', token: 1, visit: 'FOLLOW_UP', reason: 'Diabetes follow-up' },
+    { patient: 1, offsetSlots: -5, status: 'COMPLETED', token: 2, visit: 'FOLLOW_UP', reason: 'Thyroid review' },
+    { patient: 2, offsetSlots: -3, status: 'IN_CONSULTATION', token: 3, visit: 'NEW', reason: 'Headache, BP check' },
+    { patient: 3, offsetSlots: -2, status: 'WAITING', token: 4, visit: 'NEW', reason: 'Skin rash' },
+    { patient: 4, offsetSlots: -1, status: 'WAITING', token: 5, hold: true, visit: 'NEW', reason: 'Fever for 3 days' },
+    { patient: 5, offsetSlots: 0, status: 'WAITING', token: 6, visit: 'FOLLOW_UP', reason: 'Knee pain' },
+    { patient: 6, offsetSlots: 2, status: 'CONFIRMED', visit: 'NEW', reason: 'Cough' },
+    { patient: 7, offsetSlots: 4, status: 'BOOKED', visit: 'NEW', reason: 'Allergy consultation' },
+    { patient: 8, offsetSlots: 6, status: 'BOOKED', visit: 'FOLLOW_UP' },
+    // yesterday
+    { patient: 9, offsetSlots: 0, status: 'COMPLETED', token: 1, day: -1, visit: 'NEW', reason: 'General check-up' },
+    { patient: 10, offsetSlots: 1, status: 'COMPLETED', token: 2, day: -1, visit: 'FOLLOW_UP', reason: 'Cardiac follow-up' },
+    { patient: 11, offsetSlots: 2, status: 'NO_SHOW', day: -1 },
+    // tomorrow
+    { patient: 0, offsetSlots: 0, status: 'BOOKED', day: 1, visit: 'FOLLOW_UP', reason: 'Report review' },
+    { patient: 3, offsetSlots: 1, status: 'BOOKED', day: 1, visit: 'FOLLOW_UP' },
+    { patient: 10, offsetSlots: 2, status: 'CONFIRMED', day: 1, visit: 'FOLLOW_UP' },
+  ];
+
+  for (const p of plans) {
+    const startsAt = new Date(base + (p.day ?? 0) * 86_400_000 + p.offsetSlots * slot);
+    const endsAt = new Date(startsAt.getTime() + slot);
+    const checkedIn = p.token ? new Date(startsAt.getTime() - 10 * 60_000) : null;
+    const patient = patients[p.patient]!;
+    const appt = await prisma.appointment.create({
+      data: {
+        organizationId: chamber.organizationId,
+        chamberId: chamber.id,
+        patientId: patient.id,
+        doctorId: doctor.id,
+        startsAt,
+        endsAt,
+        status: p.status,
+        visitType: p.visit ?? 'NEW',
+        reason: p.reason ?? null,
+        isDemo: true,
+        checkedInAt: checkedIn,
+        queuedAt: checkedIn,
+        startedAt: ['IN_CONSULTATION', 'COMPLETED'].includes(p.status) ? startsAt : null,
+        completedAt: p.status === 'COMPLETED' ? endsAt : null,
+        createdById: assistant?.id ?? null,
+        createdByName: assistant?.fullName ?? 'Demo seed',
+        history: { create: [{ action: 'CREATED', toStatus: 'BOOKED', changedByName: assistant?.fullName ?? 'Demo seed', createdAt: new Date(startsAt.getTime() - 86_400_000) }] },
+      },
+    });
+    if (p.status !== 'BOOKED') {
+      await prisma.appointmentStatusHistory.create({
+        data: { appointmentId: appt.id, action: 'STATUS_CHANGED', fromStatus: 'BOOKED', toStatus: p.status, changedByName: assistant?.fullName ?? 'Demo seed', createdAt: checkedIn ?? startsAt },
+      });
+    }
+    if (p.token) {
+      const localDay = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(startsAt);
+      await prisma.queueToken.create({
+        data: {
+          chamberId: chamber.id,
+          doctorId: doctor.id,
+          appointmentId: appt.id,
+          queueDate: new Date(`${localDay}T00:00:00Z`),
+          scopeKey: doctor.id,
+          tokenNumber: p.token,
+          label: String(p.token),
+          onHold: !!p.hold,
+          calledAt: ['IN_CONSULTATION', 'COMPLETED'].includes(p.status) ? startsAt : null,
+          callCount: ['IN_CONSULTATION', 'COMPLETED'].includes(p.status) ? 1 : 0,
+        },
+      });
+      await prisma.$executeRaw`
+        INSERT INTO queue_token_sequences (chamber_id, scope_key, queue_date, last_value)
+        VALUES (${chamber.id}::uuid, ${doctor.id}, ${new Date(`${localDay}T00:00:00Z`)}::date, ${p.token})
+        ON CONFLICT (chamber_id, scope_key, queue_date) DO UPDATE SET last_value = GREATEST(queue_token_sequences.last_value, EXCLUDED.last_value)`;
+    }
+  }
+}
+
+function offsetMinutes(timeZone: string, at: number): number {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      .formatToParts(new Date(at))
+      .map((p) => [p.type, p.value]),
+  );
+  const asUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour) % 24, Number(parts.minute));
+  return Math.round((asUtc - Math.floor(at / 60_000) * 60_000) / 60_000);
+}
+
+/** Phase 3 demo data: doctor schedules and appointments around the current time. */
+export async function seedDemoAppointments(prisma: PrismaClient) {
+  await seedSchedules(prisma);
+  await seedAppointments(prisma);
+}

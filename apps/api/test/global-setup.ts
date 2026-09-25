@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { PrismaClient } from '@prisma/client';
-import { seedDemo, seedDemoPatients, syncRbac } from '../prisma/seed-lib';
+import { seedDemo, seedDemoAppointments, seedDemoPatients, syncRbac } from '../prisma/seed-lib';
 import { applyTestEnv } from './load-env';
 
 /**
@@ -39,6 +39,7 @@ export default async function globalSetup() {
     await syncRbac(prisma);
     await seedDemo(prisma);
     await seedDemoPatients(prisma);
+    await seedDemoAppointments(prisma);
   } finally {
     await prisma.$disconnect();
   }
