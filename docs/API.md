@@ -172,7 +172,28 @@ Dates (`YYYY-MM-DD`) and times (`HH:MM`) are chamber-local; returned instants ar
 | POST / PATCH / DELETE | `/prescription-templates`, `/prescription-templates/:id` | `templates.manage` | diagnoses, investigations, medicines, advice, follow-up instructions; `shared`; PATCH needs `version` |
 | GET / PUT | `/settings/prescriptions` | `prescriptions.view` / `settings.manage` | page size, print language, medicine name format, QR, clinical section, signature line, header note, default advice, footer |
 
+## Phase 6 endpoints — billing
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| GET | `/invoices` | `billing.view` | `q` (bill no., patient name/ID/phone), `patientId`, `doctorId`, `appointmentId`, `status` (comma list or `OPEN`), `from`, `to`, paging |
+| GET | `/invoices/suggest` | `billing.create` | `appointmentId` or `patientId` — pre-filled charges + ordered-test extras; `existingInvoiceId` if already billed |
+| GET | `/invoices/summary` | `billing.view` | `from`, `to`, `doctorId?` — collected (net), refunded, billed, discounts, by method/doctor/staff, outstanding dues |
+| GET | `/invoices/:id` | `billing.view` | with items and payment ledger |
+| GET | `/invoices/:id/print` · POST `/invoices/:id/print-log` | `billing.view` | receipt data; printing audited |
+| POST | `/invoices` | `billing.create` | `{ patientId, appointmentId?, doctorId?, items[], discountAmount, discountPercent?, discountReason?, notes?, payment? }`; discount needs `billing.update`; `INVOICE_EXISTS` (409, `data.invoiceId`) |
+| PATCH | `/invoices/:id` | `billing.update` | `{ items, discount…, notes, reason, version }` — `TOTAL_BELOW_PAID` if under the paid amount |
+| POST | `/invoices/:id/payments` | `billing.create` | `{ amount, method, provider?, reference?, note?, version }` — `OVERPAYMENT`, `PAYMENT_METHOD_DISABLED` |
+| POST | `/invoices/:id/refunds` | `billing.refund` | `{ amount, method, provider?, reference?, reason, version }` — `REFUND_EXCEEDS_PAID` |
+| POST | `/invoices/:id/void` | `billing.update` | `{ reason, version }` — `INVOICE_HAS_PAYMENTS` while money is on the bill |
+| GET | `/fee-items` | `billing.view` | `includeInactive` |
+| POST / PATCH | `/fee-items`, `/fee-items/:id` | `billing.update` | `{ kind, name, amount, investigationId? }` |
+| POST | `/fee-items/:id/status` | `billing.update` | `{ isActive }` |
+| PUT | `/doctors/:id/fees` | `billing.update` | `{ consultationFee, followUpFee, reportReviewFee, version }` — audited |
+| GET / PUT | `/settings/billing` | `billing.view` / `settings.manage` | currency symbol, enabled methods, mobile/card providers, receipt footer |
+| GET | `/queue`, `/appointments` | (Phase 3) | entries carry `billing: { invoiceId, invoiceNumber, status, due }` for viewers with `billing.view` |
+
 ## Planned resources
 
-`/api/billing`, `/api/reports`,
+`/api/reports`,
 `/api/settings` (remaining sections) — delivered phase by phase (see [ROADMAP.md](ROADMAP.md)) with the same conventions.

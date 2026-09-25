@@ -10,9 +10,36 @@ ships working backend, frontend, tests and documentation before the next one sta
 | 3. Appointments & queue | Calendar (day/week/month), booking with conflict detection, check-in, live token queue | ✅ Done |
 | 4. Clinical workflow | Consultation, configurable vitals, complaints, diagnosis (ICD-ready), investigations, clinical notes | ✅ Done |
 | 5. Prescriptions | Medicine database, smart builder, templates, finalization, versioning, A4 PDF, QR verification | ✅ Done |
-| 6. Billing | Fees, payments, receipts, dues, financial reports | ⏭ Next |
-| 7. Reports & administration | Dashboard analytics, reports, exports (PDF/CSV/Excel), settings | Planned |
+| 6. Billing | Fees, payments, receipts, dues, financial reports | ✅ Done |
+| 7. Reports & administration | Dashboard analytics, reports, exports (PDF/CSV/Excel), settings | ⏭ Next |
 | 8. Hardening | Security audit, full RBAC matrix tests, performance, backups/restore, deployment | Planned |
+
+## Phase 6 — delivered
+
+* **Bills per visit**: consultation / follow-up / report-review fee (from the doctor's fees and
+  the visit type), investigation, procedure and other charges, discount (amount or %) with a
+  reason, total, paid and due; per-chamber bill numbers (`INV-000123`); one active bill per
+  appointment. Ordered investigations with a chamber fee are suggested as extras.
+* **Payments** at the counter (with the bill or later): cash, card, mobile banking (bKash, Nagad,
+  Rocket…), bank transfer, other — methods and providers are configurable per chamber. Every
+  payment gets a receipt number (`RCPT-000045`); full card numbers are rejected (last 4 digits only).
+* **Append-only ledger**: payments are never edited or deleted (database trigger); refunds are
+  separate entries (`RF-000001`) with a reason; bills are voided (with a reason, only once no money
+  is left on them), never deleted; void bills are frozen.
+* **Edits** of an issued bill need `billing.update` and a reason (audited with old/new charges)
+  and can never drop the total below what was already paid. CHECK constraints keep subtotal,
+  discount, total, paid, due and status consistent in the database.
+* **Roles**: assistants create bills with standard fees and take payments; discounts, edits,
+  refunds, voids and fee changes are manager actions; doctors can view.
+* **Fees**: doctor fees (new visit, follow-up, report review — changes audited, spec §20
+  "MANAGER modified consultation fee") and a chamber charge schedule linked to the investigation
+  catalogue.
+* **Collections**: today's collected/billed/outstanding tiles, period summary by payment method,
+  doctor and staff member (day-end cash check); outstanding dues filter.
+* **Receipt** (A5 money receipt) with every payment and refund; printing is audited.
+* Queue shows each visit's bill status (Paid / Due ৳…) with Bill / Collect actions; patient
+  profile gains **Prescriptions** and **Billing** tabs (dues highlighted); payment events on the
+  timeline; dashboard "Collected today / pending dues"; **Settings → Billing**.
 
 ## Phase 5 — delivered
 

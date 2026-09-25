@@ -146,3 +146,6 @@ Legend: ✅ granted by default · — not granted (can be enabled) · 🔒 can n
 | Global medicines are changed only with `medicines.manage_global`; deactivating a medicine additionally needs `medicines.delete`. | `MedicinesService` |
 | Personal templates are visible only to their doctor; shared templates to the whole chamber. | `TemplatesService` |
 | The public verification endpoint returns no patient data and is rate limited. | `PublicPrescriptionsController` |
+| Discounts on a new bill need `billing.update` (assistants bill standard fees); edits need a reason and can never go below the paid amount; voiding requires that no money is left on the bill. | `InvoicesService` |
+| Payments and refunds are append-only; refunds need `billing.refund`, a reason, and cannot exceed the net paid amount. Full card numbers are rejected. | `InvoicesService`, DB trigger |
+| Bill status on queue/calendar entries is included only for viewers with `billing.view`. | `AppointmentsService`, `QueueService` |

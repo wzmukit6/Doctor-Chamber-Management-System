@@ -93,7 +93,8 @@ src/
     catalog/ consultations/   clinical master data, consultation workflow
     prescriptions/            medicines, prescriptions (versions, revisions, print, public
                               verification), templates; prescription-writer shared with consultations
-    settings/                 chamber settings (appointments, prescriptions)
+    billing/                  invoices, payment/refund ledger, fee schedule, collections summary
+    settings/                 chamber settings (appointments, prescriptions, billing)
     health/
 prisma/                       schema, migrations (with hand-written constraints/triggers), seed
 test/                         integration tests against a throwaway database per run

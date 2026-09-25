@@ -63,8 +63,13 @@ erDiagram
     chambers ||--o{ prescription_templates : "shared templates"
     doctors ||--o{ prescription_templates : "personal templates"
     prescription_templates ||--o{ prescription_template_items : medicines
-    consultations ||--o| billing : "(planned)"
-    billing ||--o{ payments : "(planned)"
+    appointments ||--o{ invoices : "bill (one active)"
+    patients ||--o{ invoices : billed
+    invoices ||--o{ invoice_items : charges
+    invoices ||--o{ payments : "ledger (payments & refunds)"
+    chambers ||--o{ fee_items : "fee schedule"
+    investigations ||--o{ fee_items : "priced"
+    chambers ||--o{ billing_sequences : "INV / RCPT / RF numbers"
     patients ||--o{ attachments : "(planned)"
 
     organizations {
@@ -260,6 +265,29 @@ erDiagram
       text_array common_frequencies
       bool is_active
     }
+    invoices {
+      uuid id PK
+      varchar invoice_number "INV-000123"
+      enum status "UNPAID|PARTIALLY_PAID|PAID|VOID"
+      numeric subtotal
+      numeric discount_amount
+      numeric total
+      numeric paid_amount "payments - refunds"
+      numeric due_amount
+      varchar void_reason
+      int version
+    }
+    payments {
+      uuid id PK
+      uuid invoice_id FK
+      enum kind "PAYMENT|REFUND"
+      varchar receipt_number "RCPT-/RF-"
+      numeric amount
+      enum method "CASH|CARD|MOBILE_BANKING|BANK_TRANSFER|OTHER"
+      varchar provider "bKash, Visa…"
+      varchar reference "never a full card number"
+      varchar reason
+    }
     settings {
       uuid id PK
       enum scope "PLATFORM|ORGANIZATION|CHAMBER|USER"
@@ -300,9 +328,14 @@ erDiagram
 | `prescription_versions_finalized_fields`, `prescription_versions_revision_reason`, `prescriptions_issued_fields` CHECKs | issued versions always carry finalizer, token and hash; revisions always carry a reason |
 | `medicines_scope_unique` (expression index), `medicines_generic_trgm`, `medicines_brand_trgm` | no duplicate medicine per scope; typo-tolerant medicine search |
 | `prescription_templates_owner_name_unique` | template names unique per doctor / per chamber for shared templates |
+| `invoices_amounts_valid`, `invoices_status_consistent`, `invoices_discount_reason`, `invoice_items_amount_valid` CHECKs | total = subtotal − discount; 0 ≤ paid ≤ total; due = total − paid; status always matches the amounts; discounts carry a reason |
+| `payments_append_only` trigger + `payments_amount_positive`, `payments_refund_reason` CHECKs | the money ledger is never edited or deleted; refunds always have a reason |
+| `invoices_protect`, `invoice_items_protect` triggers | bills are never deleted; void bills and their items never change; number/patient/chamber immutable |
+| `invoices_one_per_appointment` (partial unique, non-void) | one active bill per visit |
+| `invoices (chamber_id, invoice_number)`, `payments (chamber_id, receipt_number)` unique + `billing_sequences` | race-free bill and receipt numbers per chamber |
+| `invoices_open_dues` (partial index on open bills) | fast outstanding-dues queries |
 
 ## Planned (next phases)
 
 
-* **Billing** (Phase 6) — fees per visit type, invoices, payments, receipts and dues linked to consultations.
 * **Attachments** — patient documents and report files.

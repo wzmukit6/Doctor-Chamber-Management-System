@@ -1,3 +1,5 @@
+import { PatientPrescriptions } from '@/features/prescriptions/components/PatientPrescriptions';
+import { PatientInvoices } from '@/features/billing/components/PatientInvoices';
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -20,7 +22,7 @@ import { PatientAppointments } from '@/features/appointments/components/PatientA
 import { PatientConsultations } from '@/features/consultations/components/PatientConsultations';
 import { consultationsApi } from '@/services/endpoints';
 
-type Tab = 'overview' | 'medical' | 'timeline' | 'appointments' | 'consultations';
+type Tab = 'overview' | 'medical' | 'timeline' | 'appointments' | 'consultations' | 'prescriptions' | 'billing';
 
 function Detail({ label, children, icon }: { label: string; children: ReactNode; icon?: ReactNode }) {
   return (
@@ -70,13 +72,14 @@ export function PatientProfilePage() {
   if (query.isError || !query.data) return <ErrorState message={errorMessage(query.error)} onRetry={() => void query.refetch()} />;
 
   const p: PatientDto = query.data;
-  const tabs: { key: Tab | 'prescriptions'; label: string; disabled?: boolean }[] = [
+  const tabs: { key: Tab; label: string; disabled?: boolean }[] = [
     { key: 'overview', label: t('patients.tab_overview') },
     ...(p.medical ? [{ key: 'medical' as const, label: t('patients.tab_medical') }] : []),
     { key: 'timeline', label: t('patients.tab_timeline') },
     ...(can(PERMISSIONS.CONSULTATIONS_VIEW) ? [{ key: 'consultations' as const, label: t('consultation.list_title') }] : []),
     ...(can(PERMISSIONS.APPOINTMENTS_VIEW) ? [{ key: 'appointments' as const, label: t('patients.tab_appointments') }] : []),
-    { key: 'prescriptions', label: t('patients.tab_prescriptions'), disabled: true },
+    ...(can(PERMISSIONS.PRESCRIPTIONS_VIEW) ? [{ key: 'prescriptions' as const, label: t('patients.tab_prescriptions') }] : []),
+    ...(can(PERMISSIONS.BILLING_VIEW) ? [{ key: 'billing' as const, label: t('nav.billing') }] : []),
   ];
 
   return (
@@ -239,6 +242,8 @@ export function PatientProfilePage() {
         {tab === 'timeline' && <PatientTimeline patientId={p.id} />}
         {tab === 'appointments' && <PatientAppointments patientId={p.id} />}
         {tab === 'consultations' && <PatientConsultations patientId={p.id} />}
+        {tab === 'prescriptions' && <PatientPrescriptions patientId={p.id} />}
+        {tab === 'billing' && <PatientInvoices patientId={p.id} />}
       </div>
 
       <BookAppointmentModal open={booking} onClose={() => setBooking(false)} defaults={{ patient: p }} />

@@ -1,4 +1,17 @@
 import type {
+  BillingSettings,
+  BillingSummaryDto,
+  CreateInvoiceInput,
+  DoctorFeesInput,
+  FeeItemDto,
+  InvoiceDto,
+  InvoicePrintDto,
+  InvoiceSuggestionDto,
+  InvoiceSummaryDto,
+  RecordPaymentInput,
+  RefundInput,
+  UpdateBillingSettingsInput,
+  UpdateInvoiceInput,
   MedicineDto,
   MedicineSuggestionsDto,
   PrescriptionDto,
@@ -161,6 +174,8 @@ export const settingsApi = {
   updateAppointments: (input: UpdateAppointmentSettingsInput) => api.put<AppointmentSettings & { version: number }>('/settings/appointments', input),
   prescriptions: () => api.get<PrescriptionSettings & { version: number }>('/settings/prescriptions'),
   updatePrescriptions: (input: UpdatePrescriptionSettingsInput) => api.put<PrescriptionSettings & { version: number }>('/settings/prescriptions', input),
+  billing: () => api.get<BillingSettings & { version: number }>('/settings/billing'),
+  updateBilling: (input: UpdateBillingSettingsInput) => api.put<BillingSettings & { version: number }>('/settings/billing', input),
 };
 
 export type CatalogKind = 'diagnoses' | 'investigations' | 'complaints';
@@ -223,4 +238,29 @@ export const templatesApi = {
   create: (input: Record<string, unknown>) => api.post<PrescriptionTemplateDto>('/prescription-templates', input),
   update: (id: string, input: Record<string, unknown>) => api.patch<PrescriptionTemplateDto>(`/prescription-templates/${id}`, input),
   remove: (id: string) => api.delete(`/prescription-templates/${id}`),
+};
+
+export const invoicesApi = {
+  list: (params: ListParams) => api.page<InvoiceSummaryDto>('/invoices', params),
+  get: (id: string) => api.get<InvoiceDto>(`/invoices/${id}`),
+  suggest: (params: { appointmentId?: string; patientId?: string }) => api.get<InvoiceSuggestionDto>('/invoices/suggest', params),
+  summary: (params: { from: string; to: string; doctorId?: string }) => api.get<BillingSummaryDto>('/invoices/summary', params),
+  create: (input: CreateInvoiceInput) => api.post<InvoiceDto>('/invoices', input),
+  update: (id: string, input: UpdateInvoiceInput) => api.patch<InvoiceDto>(`/invoices/${id}`, input),
+  pay: (id: string, input: RecordPaymentInput) => api.post<InvoiceDto>(`/invoices/${id}/payments`, input),
+  refund: (id: string, input: RefundInput) => api.post<InvoiceDto>(`/invoices/${id}/refunds`, input),
+  void: (id: string, reason: string, version: number) => api.post<InvoiceDto>(`/invoices/${id}/void`, { reason, version }),
+  printData: (id: string) => api.get<InvoicePrintDto>(`/invoices/${id}/print`),
+  logPrint: (id: string) => api.post(`/invoices/${id}/print-log`),
+};
+
+export const feeItemsApi = {
+  list: (includeInactive = false) => api.get<FeeItemDto[]>('/fee-items', { includeInactive }),
+  create: (input: Record<string, unknown>) => api.post<FeeItemDto>('/fee-items', input),
+  update: (id: string, input: Record<string, unknown>) => api.patch<FeeItemDto>(`/fee-items/${id}`, input),
+  setStatus: (id: string, isActive: boolean) => api.post<FeeItemDto>(`/fee-items/${id}/status`, { isActive }),
+};
+
+export const doctorFeesApi = {
+  update: (doctorId: string, input: DoctorFeesInput) => api.put<DoctorDto>(`/doctors/${doctorId}/fees`, input),
 };

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
-import { Activity, BellRing, ClipboardList, Megaphone, Pause, Play, Plus, Radio, UserCheck } from 'lucide-react';
+import { Activity, BellRing, ClipboardList, Megaphone, Pause, Play, Plus, Radio, Receipt, UserCheck } from 'lucide-react';
 import { PERMISSIONS, zonedDate, type AppointmentAction, type QueueEntryDto } from '@chamber/shared';
 import { ActionMenu, Badge, Button, ConfirmDialog, EmptyState, ErrorState, Input, PageHeader, Select, Skeleton, useToast } from '@/components/ui';
 import { appointmentsApi, queueApi } from '@/services/endpoints';
@@ -16,6 +16,7 @@ import { availableActions } from './components/appointmentActions';
 import { AppointmentDetailModal } from './components/AppointmentDetailModal';
 import { BookAppointmentModal } from './components/BookAppointmentModal';
 import { RecordVitalsModal } from '@/features/consultations/components/RecordVitalsModal';
+import { useMoney } from '@/features/billing/money';
 
 const REFRESH_MS = 10_000;
 
@@ -36,6 +37,8 @@ export function QueuePage() {
   const [announce, setAnnounce] = useState<string | null>(null);
   const [vitalsFor, setVitalsFor] = useState<QueueEntryDto | null>(null);
   const navigate = useNavigate();
+  const money = useMoney();
+  const canBill = can(PERMISSIONS.BILLING_CREATE);
   const isToday = date === today;
 
   const q = useQuery({
@@ -253,6 +256,11 @@ export function QueuePage() {
                         <div className="flex flex-wrap items-center gap-1">
                           <AppointmentStatusBadge status={e.status} />
                           {e.token?.onHold && <Badge>{t('queue.on_hold')}</Badge>}
+                          {e.billing && (
+                            <Badge tone={e.billing.status === 'PAID' ? 'success' : 'warning'}>
+                              {e.billing.status === 'PAID' ? t('billing.badge_paid') : t('billing.badge_due', { amount: money(e.billing.due) })}
+                            </Badge>
+                          )}
                         </div>
                         {waiting && e.waitingSince && (
                           <p className="mt-0.5 text-2xs text-ink-subtle">
@@ -267,6 +275,11 @@ export function QueuePage() {
                           {e.status === 'IN_CONSULTATION' && e.consultationId && can(PERMISSIONS.CONSULTATIONS_VIEW) && ownQueue && (
                             <Button size="sm" icon={<ClipboardList className="h-3.5 w-3.5" />} onClick={() => navigate(`/consultations/${e.consultationId}`)}>
                               {t('consultation.open')}
+                            </Button>
+                          )}
+                          {!primary && e.status === 'COMPLETED' && canBill && !e.billing && (
+                            <Button size="sm" variant="secondary" icon={<Receipt className="h-3.5 w-3.5" />} onClick={() => navigate(`/billing/new?appointmentId=${e.id}`)}>
+                              {t('billing.bill')}
                             </Button>
                           )}
                           {primary && !(e.status === 'IN_CONSULTATION' && e.consultationId && ownQueue && can(PERMISSIONS.CONSULTATIONS_VIEW)) && (
@@ -303,6 +316,18 @@ export function QueuePage() {
                                 icon: <Activity className="h-4 w-4" />,
                                 hidden: !can(PERMISSIONS.VITALS_RECORD) || !['CHECKED_IN', 'WAITING', 'IN_CONSULTATION'].includes(e.status),
                                 onSelect: () => setVitalsFor(e),
+                              },
+                              {
+                                label: t('billing.create_bill'),
+                                icon: <Receipt className="h-4 w-4" />,
+                                hidden: !canBill || !!e.billing || !['CHECKED_IN', 'WAITING', 'IN_CONSULTATION', 'COMPLETED'].includes(e.status),
+                                onSelect: () => navigate(`/billing/new?appointmentId=${e.id}`),
+                              },
+                              {
+                                label: e.billing && e.billing.due > 0 ? t('billing.collect_due') : t('billing.view_bill'),
+                                icon: <Receipt className="h-4 w-4" />,
+                                hidden: !e.billing,
+                                onSelect: () => navigate(`/billing/invoices/${e.billing!.invoiceId}`),
                               },
                               { label: t('appointments.details'), onSelect: () => setSelected(e.id) },
                               { label: t('appointments.no_show'), hidden: !actions.includes('no-show'), tone: 'danger', onSelect: () => apptAction.mutate({ id: e.id, action: 'no-show' }) },

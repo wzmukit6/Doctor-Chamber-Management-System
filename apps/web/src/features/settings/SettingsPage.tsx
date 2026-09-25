@@ -10,21 +10,22 @@ import { useAuth } from '@/stores/auth';
 import { useDoctors } from '@/hooks/useChamber';
 import { VitalsSettings } from './VitalsSettings';
 import { PrescriptionSettingsForm } from './PrescriptionSettingsForm';
+import { BillingSettingsForm } from './BillingSettingsForm';
 import { errorMessage, translateMessage } from '@/utils/errors';
 
 /** Display order: Saturday first (Bangladesh work week). */
 const WEEK = [6, 0, 1, 2, 3, 4, 5];
 
-/** Settings (spec §34): appointments & tokens, doctor schedules, vitals, prescriptions. */
+/** Settings (spec §34): appointments & tokens, doctor schedules, vitals, prescriptions, billing. */
 export function SettingsPage() {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<'appointments' | 'schedules' | 'vitals' | 'prescriptions'>('appointments');
+  const [tab, setTab] = useState<'appointments' | 'schedules' | 'vitals' | 'prescriptions' | 'billing'>('appointments');
   return (
     <div>
       <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
       <div className="mb-4 border-b border-border" role="tablist">
         <div className="-mb-px flex gap-1">
-          {(['appointments', 'schedules', 'vitals', 'prescriptions'] as const).map((k) => (
+          {(['appointments', 'schedules', 'vitals', 'prescriptions', 'billing'] as const).map((k) => (
             <button
               key={k}
               role="tab"
@@ -38,7 +39,7 @@ export function SettingsPage() {
           ))}
         </div>
       </div>
-      {tab === 'appointments' ? <AppointmentSettingsForm /> : tab === 'schedules' ? <DoctorSchedules /> : tab === 'vitals' ? <VitalsSettings /> : <PrescriptionSettingsForm />}
+      {tab === 'appointments' ? <AppointmentSettingsForm /> : tab === 'schedules' ? <DoctorSchedules /> : tab === 'vitals' ? <VitalsSettings /> : tab === 'prescriptions' ? <PrescriptionSettingsForm /> : <BillingSettingsForm />}
     </div>
   );
 }

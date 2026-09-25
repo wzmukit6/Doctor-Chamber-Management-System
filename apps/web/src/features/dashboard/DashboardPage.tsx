@@ -25,7 +25,8 @@ import {
 } from 'lucide-react';
 import { addDays, PERMISSIONS, zonedDate, type RoleKey } from '@chamber/shared';
 import { useAuth } from '@/stores/auth';
-import { appointmentsApi, auditApi, consultationsApi, organizationsApi, chambersApi, patientsApi, prescriptionsApi, queueApi, usersApi } from '@/services/endpoints';
+import { useMoney } from '@/features/billing/money';
+import { appointmentsApi, auditApi, consultationsApi, organizationsApi, chambersApi, invoicesApi, patientsApi, prescriptionsApi, queueApi, usersApi } from '@/services/endpoints';
 import { useChamberTz, useToday } from '@/hooks/useChamber';
 import { BookAppointmentModal } from '@/features/appointments/components/BookAppointmentModal';
 import { PatientLine } from '@/features/patients/components/PatientBits';
@@ -45,20 +46,6 @@ function StatCard({ label, value, icon, loading, hint, to }: { label: string; va
     </div>
   );
   return to ? <Link to={to}>{body}</Link> : body;
-}
-
-function PendingCard({ label, icon, module }: { label: string; icon: ReactNode; module: string }) {
-  const { t } = useTranslation();
-  return (
-    <div className="card flex items-start gap-4 border-dashed p-4">
-      <div className="rounded-lg bg-canvas p-2.5 text-ink-subtle">{icon}</div>
-      <div>
-        <p className="text-xs font-medium text-ink-muted">{label}</p>
-        <p className="mt-0.5 text-2xl font-semibold text-ink-subtle">—</p>
-        <p className="mt-1 text-2xs text-ink-subtle">{t('dashboard.module_pending', { module })}</p>
-      </div>
-    </div>
-  );
 }
 
 function QuickAction({ label, icon, disabled, onClick }: { label: string; icon: ReactNode; disabled?: boolean; onClick?: () => void }) {
@@ -171,8 +158,8 @@ const ROADMAP: { phase: number; key: string; status: 'done' | 'next' | 'planned'
   { phase: 3, key: 'Appointments & queue', status: 'done' },
   { phase: 4, key: 'Clinical workflow — consultation, vitals, diagnosis', status: 'done' },
   { phase: 5, key: 'Prescriptions — builder, templates, versioning, PDF', status: 'done' },
-  { phase: 6, key: 'Billing & payments', status: 'next' },
-  { phase: 7, key: 'Reports, analytics & settings', status: 'planned' },
+  { phase: 6, key: 'Billing & payments', status: 'done' },
+  { phase: 7, key: 'Reports, analytics & settings', status: 'next' },
   { phase: 8, key: 'Hardening & deployment', status: 'planned' },
 ];
 
@@ -283,7 +270,7 @@ function ManagerDashboard() {
           icon={<CalendarClock className="h-5 w-5" />}
           to="/queue"
         />
-        <PendingCard label={t('dashboard.payment_status')} icon={<Wallet className="h-5 w-5" />} module={t('nav.billing')} />
+        <PaymentsCard />
       </div>
       <ActivityAndRoadmap />
     </>
@@ -337,6 +324,26 @@ function UpcomingAppointments({ doctorId }: { doctorId?: string }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** Today's collections and outstanding dues (spec §4 "Payment status", "Pending payments"). */
+function PaymentsCard() {
+  const { t } = useTranslation();
+  const { can } = useAuth();
+  const today = useToday();
+  const money = useMoney();
+  const q = useQuery({ queryKey: ['invoices', 'summary', today, today], queryFn: () => invoicesApi.summary({ from: today, to: today }), enabled: can(PERMISSIONS.BILLING_VIEW) });
+  if (!can(PERMISSIONS.BILLING_VIEW)) return null;
+  return (
+    <StatCard
+      label={t('dashboard.collected_today')}
+      value={q.data ? money(q.data.collected) : undefined}
+      loading={q.isLoading}
+      hint={q.data ? t('dashboard.pending_dues', { amount: money(q.data.outstanding), count: q.data.outstandingCount }) : undefined}
+      icon={<Wallet className="h-5 w-5" />}
+      to="/billing"
+    />
   );
 }
 
@@ -435,7 +442,7 @@ function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => 
         ) : (
           <>
             <StatCard label={t('dashboard.checked_in')} value={s?.checkedIn} loading={queue.isLoading} icon={<ClipboardCheck className="h-5 w-5" />} to="/queue" />
-            <PendingCard label={t('dashboard.payment_status')} icon={<Wallet className="h-5 w-5" />} module={t('nav.billing')} />
+            <PaymentsCard />
           </>
         )}
       </div>
@@ -450,7 +457,7 @@ function ClinicalDashboard({ role, onSearch }: { role: RoleKey; onSearch: () => 
   );
 }
 
-/** Role-specific dashboards (spec §4). Widgets for modules not yet delivered are shown as placeholders. */
+/** Role-specific dashboards (spec §4). */
 export function DashboardPage() {
   const { t } = useTranslation();
   const { user } = useAuth();

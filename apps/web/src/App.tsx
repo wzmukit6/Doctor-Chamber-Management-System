@@ -32,6 +32,10 @@ const PrescriptionDetailPage = lazy(() => import('@/features/prescriptions/Presc
 const PrescriptionPrintPage = lazy(() => import('@/features/prescriptions/PrescriptionPrintPage').then((m) => ({ default: m.PrescriptionPrintPage })));
 const VerifyPrescriptionPage = lazy(() => import('@/features/prescriptions/VerifyPrescriptionPage').then((m) => ({ default: m.VerifyPrescriptionPage })));
 const MedicinesPage = lazy(() => import('@/features/medicines/MedicinesPage').then((m) => ({ default: m.MedicinesPage })));
+const BillingPage = lazy(() => import('@/features/billing/BillingPage').then((m) => ({ default: m.BillingPage })));
+const NewInvoicePage = lazy(() => import('@/features/billing/NewInvoicePage').then((m) => ({ default: m.NewInvoicePage })));
+const InvoiceDetailPage = lazy(() => import('@/features/billing/InvoiceDetailPage').then((m) => ({ default: m.InvoiceDetailPage })));
+const InvoicePrintPage = lazy(() => import('@/features/billing/InvoicePrintPage').then((m) => ({ default: m.InvoicePrintPage })));
 const ProfilePage = lazy(() => import('@/features/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 
 function FullPageSpinner() {
@@ -66,6 +70,18 @@ export function App() {
           <Suspense fallback={<FullPageSpinner />}>
             <VerifyPrescriptionPage />
           </Suspense>
+        }
+      />
+      <Route
+        path="/billing/invoices/:id/print"
+        element={
+          <RequireAuth>
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.BILLING_VIEW}>
+                <InvoicePrintPage />
+              </RequirePermission>
+            </Suspense>
+          </RequireAuth>
         }
       />
       {/* Print view renders without the app shell. */}
@@ -205,6 +221,36 @@ export function App() {
             <Suspense fallback={<FullPageSpinner />}>
               <RequirePermission permission={PERMISSIONS.MEDICINES_VIEW}>
                 <MedicinesPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="billing"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.BILLING_VIEW}>
+                <BillingPage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="billing/new"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.BILLING_CREATE}>
+                <NewInvoicePage />
+              </RequirePermission>
+            </Suspense>
+          }
+        />
+        <Route
+          path="billing/invoices/:id"
+          element={
+            <Suspense fallback={<FullPageSpinner />}>
+              <RequirePermission permission={PERMISSIONS.BILLING_VIEW}>
+                <InvoiceDetailPage />
               </RequirePermission>
             </Suspense>
           }
