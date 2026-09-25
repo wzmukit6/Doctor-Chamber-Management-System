@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { syncReferenceData } from './reference-data';
-import { DEMO_PASSWORD, DEMO_USERS, seedDemo, seedDemoAppointments, seedDemoConsultations, seedDemoPatients, seedDemoPrescriptions, syncRbac } from './seed-lib';
+import { DEMO_PASSWORD, DEMO_USERS, seedDemo, seedDemoAppointments, seedDemoConsultations, seedDemoPatients, seedDemoPrescriptions, seedDemoBilling, syncRbac } from './seed-lib';
 
 /**
  * `npm run db:seed` — syncs RBAC and (unless SEED_DEMO=false) creates
@@ -24,6 +24,8 @@ async function main() {
       console.log('✔ Demo consultations created');
       await seedDemoPrescriptions(prisma);
       console.log('✔ Demo prescriptions created (one revised)');
+      await seedDemoBilling(prisma);
+      console.log('✔ Demo fee schedule and bills created');
       console.log(`\nDemo accounts (password: ${DEMO_PASSWORD}):`);
       for (const [role, email] of Object.entries(DEMO_USERS)) console.log(`  ${role.padEnd(12)} ${email}`);
     }

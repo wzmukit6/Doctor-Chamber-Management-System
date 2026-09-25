@@ -622,3 +622,111 @@ export async function seedDemoPrescriptions(prisma: PrismaClient) {
     }
   }
 }
+
+async function nextBillingNumber(prisma: PrismaClient, chamberId: string, kind: string, prefix: string) {
+  const rows = await prisma.$queryRaw<{ last_value: number }[]>`
+    INSERT INTO billing_sequences (chamber_id, kind, last_value) VALUES (${chamberId}::uuid, ${kind}, 1)
+    ON CONFLICT (chamber_id, kind) DO UPDATE SET last_value = billing_sequences.last_value + 1
+    RETURNING last_value`;
+  return `${prefix}-${String(rows[0]!.last_value).padStart(6, '0')}`;
+}
+
+/**
+ * Phase 6 demo data: a fee schedule for the demo chambers and bills for
+ * completed demo visits (paid, partly paid, unpaid, discounted). Idempotent.
+ */
+export async function seedDemoBilling(prisma: PrismaClient) {
+  const chambers = await prisma.chamber.findMany({ where: { isDemo: true } });
+  const investigations = await prisma.investigationCatalog.findMany({ where: { chamberId: null } });
+  const fees: [string, 'INVESTIGATION' | 'PROCEDURE' | 'OTHER', number][] = [
+    ['Complete blood count', 'INVESTIGATION', 400],
+    ['Random blood sugar', 'INVESTIGATION', 150],
+    ['HbA1c', 'INVESTIGATION', 1200],
+    ['Lipid profile', 'INVESTIGATION', 1000],
+    ['Serum creatinine', 'INVESTIGATION', 400],
+    ['Serum TSH', 'INVESTIGATION', 900],
+    ['Electrocardiogram', 'INVESTIGATION', 500],
+    ['Serum electrolytes', 'INVESTIGATION', 800],
+    ['Nebulization', 'PROCEDURE', 300],
+    ['Wound dressing', 'PROCEDURE', 250],
+    ['Medical certificate', 'OTHER', 200],
+  ];
+  for (const chamber of chambers) {
+    if ((await prisma.feeItem.count({ where: { chamberId: chamber.id } })) > 0) continue;
+    await prisma.feeItem.createMany({
+      data: fees.map(([name, kind, amount]) => ({ chamberId: chamber.id, kind, name, amount, investigationId: kind === 'INVESTIGATION' ? (investigations.find((i) => i.name === name)?.id ?? null) : null })),
+    });
+  }
+  await prisma.doctor.updateMany({ where: { user: { email: { in: [DEMO_USERS.doctor, DEMO_USERS.doctorB] } }, reportReviewFee: null }, data: { reportReviewFee: 300 } });
+
+  const doctor = await prisma.doctor.findFirst({ where: { user: { email: DEMO_USERS.doctor } }, include: { user: true } });
+  const assistant = await prisma.user.findUnique({ where: { email: DEMO_USERS.assistant } });
+  if (!doctor) return;
+  const appts = await prisma.appointment.findMany({
+    where: { doctorId: doctor.id, isDemo: true, status: 'COMPLETED', invoices: { none: {} } },
+    orderBy: { startsAt: 'asc' },
+  });
+  const plans: { method: 'CASH' | 'MOBILE_BANKING' | 'CARD'; provider?: string; paid: 'full' | 'part' | 'none'; discount?: number; extra?: string }[] = [
+    { method: 'CASH', paid: 'full' },
+    { method: 'MOBILE_BANKING', provider: 'bKash', paid: 'full', extra: 'Complete blood count' },
+    { method: 'CASH', paid: 'part', extra: 'HbA1c' },
+    { method: 'CASH', paid: 'none' },
+    { method: 'CARD', provider: 'Visa', paid: 'full', discount: 200 },
+  ];
+  for (const [n, appt] of appts.entries()) {
+    const plan = plans[n % plans.length]!;
+    const fee = Number((appt.visitType === 'FOLLOW_UP' ? doctor.followUpFee : doctor.consultationFee) ?? 0);
+    const items: { type: 'CONSULTATION' | 'FOLLOW_UP' | 'INVESTIGATION'; description: string; unitPrice: number; feeItemId: string | null }[] = [
+      { type: appt.visitType === 'FOLLOW_UP' ? 'FOLLOW_UP' : 'CONSULTATION', description: `${appt.visitType === 'FOLLOW_UP' ? 'Follow-up consultation' : 'Consultation fee'} — ${doctor.user.fullName}`, unitPrice: fee, feeItemId: null },
+    ];
+    if (plan.extra) {
+      const f = await prisma.feeItem.findFirst({ where: { chamberId: appt.chamberId, name: plan.extra } });
+      if (f) items.push({ type: 'INVESTIGATION', description: f.name, unitPrice: Number(f.amount), feeItemId: f.id });
+    }
+    const subtotal = items.reduce((s, i) => s + i.unitPrice, 0);
+    const discount = Math.min(plan.discount ?? 0, subtotal);
+    const total = subtotal - discount;
+    const paid = plan.paid === 'full' ? total : plan.paid === 'part' ? Math.min(500, total) : 0;
+    const status = paid >= total ? 'PAID' : paid > 0 ? 'PARTIALLY_PAID' : 'UNPAID';
+    const at = appt.completedAt ?? appt.endsAt;
+    const inv = await prisma.invoice.create({
+      data: {
+        organizationId: appt.organizationId,
+        chamberId: appt.chamberId,
+        patientId: appt.patientId,
+        doctorId: doctor.id,
+        appointmentId: appt.id,
+        invoiceNumber: await nextBillingNumber(prisma, appt.chamberId, 'INVOICE', 'INV'),
+        status,
+        subtotal,
+        discountAmount: discount,
+        discountReason: discount ? 'Senior citizen discount' : null,
+        total,
+        paidAmount: paid,
+        dueAmount: total - paid,
+        issuedAt: at,
+        isDemo: true,
+        createdById: assistant?.id ?? null,
+        createdByName: assistant?.fullName ?? null,
+        items: { create: items.map((i, k) => ({ ...i, quantity: 1, amount: i.unitPrice, sortOrder: k })) },
+      },
+    });
+    if (paid > 0) {
+      await prisma.payment.create({
+        data: {
+          invoiceId: inv.id,
+          chamberId: appt.chamberId,
+          receiptNumber: await nextBillingNumber(prisma, appt.chamberId, 'RECEIPT', 'RCPT'),
+          amount: paid,
+          method: plan.method,
+          provider: plan.provider ?? null,
+          reference: plan.method === 'MOBILE_BANKING' ? 'TRX8K2M4Q' : plan.method === 'CARD' ? '•••• 4242' : null,
+          receivedById: assistant?.id ?? null,
+          receivedByName: assistant?.fullName ?? null,
+          receivedAt: at,
+          isDemo: true,
+        },
+      });
+    }
+  }
+}

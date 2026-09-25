@@ -7,11 +7,14 @@ export const appointmentInclude = {
   doctor: { select: { id: true, specialty: true, user: { select: { fullName: true } } } },
   token: true,
   consultation: { select: { id: true } },
+  invoices: { where: { status: { not: 'VOID' } }, select: { id: true, invoiceNumber: true, status: true, dueAmount: true }, take: 1 },
 } satisfies Prisma.AppointmentInclude;
 
 export type AppointmentRow = Prisma.AppointmentGetPayload<{ include: typeof appointmentInclude }>;
 
-export function toAppointmentDto(a: AppointmentRow): AppointmentDto {
+/** `withBilling`: include the visit's bill summary (only for viewers with `billing.view`). */
+export function toAppointmentDto(a: AppointmentRow, withBilling = false): AppointmentDto {
+  const bill = a.invoices[0];
   return {
     id: a.id,
     chamberId: a.chamberId,
@@ -48,6 +51,7 @@ export function toAppointmentDto(a: AppointmentRow): AppointmentDto {
     createdAt: a.createdAt.toISOString(),
     version: a.version,
     consultationId: a.consultation?.id ?? null,
+    ...(withBilling ? { billing: bill ? { invoiceId: bill.id, invoiceNumber: bill.invoiceNumber, status: bill.status, due: Number(bill.dueAmount) } : null } : {}),
   };
 }
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { DoctorDto, DoctorScheduleInput } from '@chamber/shared';
+import { DoctorDto, DoctorFeesInput, DoctorScheduleInput } from '@chamber/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthorizationService } from '../authorization/authorization.service';
@@ -20,8 +20,9 @@ function toDto(d: DoctorRow): DoctorDto {
     fullName: d.user.fullName,
     specialty: d.specialty,
     qualifications: d.qualifications,
-    consultationFee: d.consultationFee ? Number(d.consultationFee) : null,
-    followUpFee: d.followUpFee ? Number(d.followUpFee) : null,
+    consultationFee: d.consultationFee !== null ? Number(d.consultationFee) : null,
+    followUpFee: d.followUpFee !== null ? Number(d.followUpFee) : null,
+    reportReviewFee: d.reportReviewFee !== null ? Number(d.reportReviewFee) : null,
     isActive: d.isActive && d.user.isActive && !d.user.deletedAt,
     schedule: d.schedule.map((w) => ({ weekday: w.weekday, startTime: w.startTime, endTime: w.endTime })),
     slotMinutes: d.slotMinutes,
@@ -84,6 +85,31 @@ export class DoctorsService {
           resourceId: id,
           oldValue: { windows: toDto(before).schedule, slotMinutes: before.slotMinutes, maxDailyPatients: before.maxDailyPatients },
           newValue: input,
+          chamberId: before.chamberId,
+        },
+        tx,
+      );
+    });
+    return this.get(actor, id);
+  }
+
+  /** Consultation / follow-up / report-review fees (spec §20 "MANAGER modified consultation fee" — audited). */
+  async updateFees(actor: Actor, id: string, input: DoctorFeesInput): Promise<DoctorDto> {
+    const before = await this.load(actor, id);
+    if (before.version !== input.version) throw AppError.staleVersion();
+    const fees = { consultationFee: input.consultationFee ?? null, followUpFee: input.followUpFee ?? null, reportReviewFee: input.reportReviewFee ?? null };
+    await this.prisma.$transaction(async (tx) => {
+      const res = await tx.doctor.updateMany({ where: { id, version: input.version }, data: { ...fees, version: { increment: 1 } } });
+      if (res.count !== 1) throw AppError.staleVersion();
+      const old = toDto(before);
+      await this.audit.record(
+        actor,
+        {
+          action: 'doctor.fees_updated',
+          resourceType: 'doctor',
+          resourceId: id,
+          oldValue: { consultationFee: old.consultationFee, followUpFee: old.followUpFee, reportReviewFee: old.reportReviewFee },
+          newValue: fees,
           chamberId: before.chamberId,
         },
         tx,

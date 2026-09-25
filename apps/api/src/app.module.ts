@@ -19,6 +19,7 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { PrescriptionsModule } from './modules/prescriptions/prescriptions.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { AuthGuard } from './common/guards/auth.guard';
@@ -46,6 +47,7 @@ const config = loadConfig();
     CatalogModule,
     ConsultationsModule,
     PrescriptionsModule,
+    BillingModule,
     HealthModule,
   ],
   providers: [

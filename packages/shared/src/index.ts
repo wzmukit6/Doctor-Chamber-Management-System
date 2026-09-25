@@ -14,3 +14,4 @@ export * from './schemas/appointments';
 export * from './schemas/clinical';
 export * from './schemas/prescriptions';
 export * from './schemas/templates';
+export * from './schemas/billing';

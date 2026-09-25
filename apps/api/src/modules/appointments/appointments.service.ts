@@ -92,7 +92,8 @@ export class AppointmentsService {
       orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }],
       take: 2000,
     });
-    return rows.map(toAppointmentDto);
+    const withBilling = actor.permissions.has(PERMISSIONS.BILLING_VIEW);
+    return rows.map((r) => toAppointmentDto(r, withBilling));
   }
 
   async get(actor: Actor, id: string): Promise<AppointmentDto & { history: AppointmentHistoryDto[] }> {

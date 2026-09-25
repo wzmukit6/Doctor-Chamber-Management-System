@@ -6,6 +6,8 @@ import {
   updateAppointmentSettingsSchema,
   UpdatePrescriptionSettingsInput,
   updatePrescriptionSettingsSchema,
+  UpdateBillingSettingsInput,
+  updateBillingSettingsSchema,
 } from '@chamber/shared';
 import { CurrentActor, RequirePermissions } from '../../common/decorators/auth.decorators';
 import { ValidBody } from '../../common/decorators/validated.decorator';
@@ -13,6 +15,7 @@ import { AppError } from '../../common/errors/app-error';
 import type { Actor } from '../../common/request-context';
 import { AppointmentSettingsService } from './appointment-settings.service';
 import { PrescriptionSettingsService } from './prescription-settings.service';
+import { BillingSettingsService } from './billing-settings.service';
 
 function chamberOf(actor: Actor): string {
   if (!actor.chamberId) throw AppError.forbidden('Chamber settings require a chamber membership');
@@ -25,6 +28,7 @@ export class SettingsController {
   constructor(
     private readonly appointments: AppointmentSettingsService,
     private readonly prescriptions: PrescriptionSettingsService,
+    private readonly billing: BillingSettingsService,
   ) {}
 
   /** Readable by everyone who books appointments (slot length, token format). */
@@ -51,5 +55,17 @@ export class SettingsController {
   @RequirePermissions(PERMISSIONS.SETTINGS_MANAGE)
   updatePrescriptions(@CurrentActor() actor: Actor, @ValidBody(updatePrescriptionSettingsSchema) body: UpdatePrescriptionSettingsInput) {
     return this.prescriptions.update(actor, chamberOf(actor), body);
+  }
+
+  @Get('billing')
+  @RequirePermissions(PERMISSIONS.BILLING_VIEW)
+  getBilling(@CurrentActor() actor: Actor) {
+    return this.billing.get(chamberOf(actor));
+  }
+
+  @Put('billing')
+  @RequirePermissions(PERMISSIONS.SETTINGS_MANAGE)
+  updateBilling(@CurrentActor() actor: Actor, @ValidBody(updateBillingSettingsSchema) body: UpdateBillingSettingsInput) {
+    return this.billing.update(actor, chamberOf(actor), body);
   }
 }

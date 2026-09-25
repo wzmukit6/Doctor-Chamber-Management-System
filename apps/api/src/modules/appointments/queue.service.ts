@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { AppointmentStatus } from '@prisma/client';
-import { ERROR_CODES, QueueDto, QueueEntryDto, zonedDate, zonedDayRange } from '@chamber/shared';
+import { ERROR_CODES, PERMISSIONS, QueueDto, QueueEntryDto, zonedDate, zonedDayRange } from '@chamber/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AppError } from '../../common/errors/app-error';
@@ -36,7 +36,7 @@ export class QueueService {
       include: appointmentInclude,
     });
     const entries: QueueEntryDto[] = rows
-      .map((r) => ({ ...toAppointmentDto(r), waitingSince: (r.queuedAt ?? r.checkedInAt)?.toISOString() ?? null }))
+      .map((r) => ({ ...toAppointmentDto(r, actor.permissions.has(PERMISSIONS.BILLING_VIEW)), waitingSince: (r.queuedAt ?? r.checkedInAt)?.toISOString() ?? null }))
       .sort((a, b) => {
         const byStatus = (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9);
         if (byStatus) return byStatus;

@@ -1,6 +1,6 @@
 import { Controller, Get, Param, ParseUUIDPipe, Put } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { DoctorScheduleInput, doctorScheduleSchema, PERMISSIONS } from '@chamber/shared';
+import { DoctorFeesInput, doctorFeesSchema, DoctorScheduleInput, doctorScheduleSchema, PERMISSIONS } from '@chamber/shared';
 import { CurrentActor, RequirePermissions } from '../../common/decorators/auth.decorators';
 import { ValidBody } from '../../common/decorators/validated.decorator';
 import type { Actor } from '../../common/request-context';
@@ -27,5 +27,11 @@ export class DoctorsController {
   @RequirePermissions(PERMISSIONS.SCHEDULES_MANAGE)
   updateSchedule(@CurrentActor() actor: Actor, @Param('id', ParseUUIDPipe) id: string, @ValidBody(doctorScheduleSchema) body: DoctorScheduleInput) {
     return this.doctors.updateSchedule(actor, id, body);
+  }
+
+  @Put(':id/fees')
+  @RequirePermissions(PERMISSIONS.BILLING_UPDATE)
+  updateFees(@CurrentActor() actor: Actor, @Param('id', ParseUUIDPipe) id: string, @ValidBody(doctorFeesSchema) body: DoctorFeesInput) {
+    return this.doctors.updateFees(actor, id, body);
   }
 }

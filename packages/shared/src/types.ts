@@ -1,4 +1,5 @@
 import type { PrescriptionSettings } from './schemas/prescriptions';
+import type { BillingSettings } from './schemas/billing';
 import type { Permission } from './permissions';
 import type { RoleKey } from './roles';
 
@@ -188,6 +189,7 @@ export interface DoctorDto {
   qualifications: string | null;
   consultationFee: number | null;
   followUpFee: number | null;
+  reportReviewFee: number | null;
   isActive: boolean;
   schedule: DoctorScheduleWindowDto[];
   slotMinutes: number | null;
@@ -217,6 +219,8 @@ export interface AppointmentDto {
   version: number;
   /** Consultation started from this appointment, if any. */
   consultationId: string | null;
+  /** The visit's bill (not void), when the viewer may see billing. */
+  billing?: AppointmentBillingDto | null;
 }
 
 export interface AppointmentHistoryDto {
@@ -517,4 +521,110 @@ export interface PrescriptionVerificationDto {
   doctor: { fullName: string; qualifications: string | null; registrationNo: string | null };
   chamber: { name: string };
   contentHash: string | null;
+}
+
+// ───────────── Billing (Phase 6) ─────────────
+
+export interface InvoiceItemDto {
+  id: string;
+  type: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  feeItemId: string | null;
+}
+
+export interface PaymentDto {
+  id: string;
+  kind: 'PAYMENT' | 'REFUND';
+  receiptNumber: string;
+  amount: number;
+  method: string;
+  provider: string | null;
+  reference: string | null;
+  note: string | null;
+  reason: string | null;
+  receivedByName: string | null;
+  receivedAt: string;
+}
+
+export interface InvoiceSummaryDto {
+  id: string;
+  invoiceNumber: string;
+  status: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID' | 'VOID';
+  patient: { id: string; patientCode: string; fullName: string; phone: string | null };
+  doctor: { id: string; fullName: string } | null;
+  appointmentId: string | null;
+  total: number;
+  paid: number;
+  due: number;
+  issuedAt: string;
+  createdByName: string | null;
+}
+
+export interface InvoiceDto extends InvoiceSummaryDto {
+  items: InvoiceItemDto[];
+  subtotal: number;
+  discountAmount: number;
+  discountPercent: number | null;
+  discountReason: string | null;
+  refunded: number;
+  notes: string | null;
+  payments: PaymentDto[];
+  voidedAt: string | null;
+  voidReason: string | null;
+  version: number;
+}
+
+/** Suggested bill for a visit (fees from the doctor and the chamber fee schedule). */
+export interface InvoiceSuggestionDto {
+  patient: { id: string; patientCode: string; fullName: string };
+  doctor: { id: string; fullName: string } | null;
+  appointmentId: string | null;
+  visitType: string | null;
+  existingInvoiceId: string | null;
+  items: { type: string; description: string; quantity: number; unitPrice: number; feeItemId: string | null }[];
+  /** Investigations ordered in the consultation that have a chamber fee (optional extras). */
+  suggestedExtras: { type: string; description: string; quantity: number; unitPrice: number; feeItemId: string | null }[];
+}
+
+export interface FeeItemDto {
+  id: string;
+  kind: string;
+  name: string;
+  amount: number;
+  investigationId: string | null;
+  isActive: boolean;
+}
+
+export interface BillingSummaryDto {
+  from: string;
+  to: string;
+  /** Net cash in: payments minus refunds received in the period. */
+  collected: number;
+  refunded: number;
+  paymentsCount: number;
+  billed: number;
+  invoicesCount: number;
+  discounts: number;
+  byMethod: { method: string; amount: number; count: number }[];
+  byDoctor: { doctorId: string | null; doctorName: string | null; billed: number; collected: number }[];
+  byCollector: { userName: string | null; amount: number; count: number }[];
+  /** Outstanding dues across all open invoices (not limited to the period). */
+  outstanding: number;
+  outstandingCount: number;
+}
+
+export interface InvoicePrintDto {
+  invoice: InvoiceDto;
+  chamber: { name: string; address: string | null; phone: string | null; email: string | null; timezone: string };
+  settings: BillingSettings;
+}
+
+export interface AppointmentBillingDto {
+  invoiceId: string;
+  invoiceNumber: string;
+  status: InvoiceSummaryDto['status'];
+  due: number;
 }
